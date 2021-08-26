@@ -1,0 +1,4932 @@
+<!DOCTYPE html>		<!-- doctype is important to make HTML 5 work on IE 9 -->
+<html>
+<!--
+Masterroids-JS-CANVAS
+version 1.0
+
+
+Software License Agreement (BSD License)
+
+Copyright (c) 2009-2011, Roman Komary
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this 
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice, this
+  list of conditions and the following disclaimer in the documentation and/or
+  other materials provided with the distribution.
+
+* Neither the name Roman Komary nor the names of its contributors may be
+  used to endorse or promote products derived from this software without
+  specific prior written permission from Roman Komary.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+-->
+<head>
+<title>Masterroids-JS-CANVAS - The Game</title>
+<meta name="keywords" content="roman,komary,masterroids,asteroids,thexagon,x-agon,game,javascript,canvas" />
+<script type="text/javascript" src="kor.core.js"></script>
+<script type="text/javascript" src="kor.calc.js"></script>
+<script type="text/javascript" src="kor.system.js"></script>
+<script type="text/javascript" src="kor.media.js"></script>
+<script type="text/javascript" src="kor.sprite.js"></script>
+<script type="text/javascript" src="kor.ui.js"></script>
+<script type="text/javascript" src="kor.game.js"></script>
+
+<style type="text/css">
+	html
+	{
+		height: 100%;
+	}
+	body
+	{
+		width: 100%;
+		height: 100%;
+		margin: 0px;
+		padding: 0px;
+		background-color: #000;
+		font: 11px Verdana;
+		color: #bbb;
+		/* to hide scrollbars, make overflow hidden. But on Firefox, cursor-scrolling still possible, unless position is fixed. */
+		overflow: hidden;
+		position: fixed;    /* unfortunately when fixed, auto-width (width="100%" etc.) does not work anymore for elements. */
+	}
+	canvas#surface
+	{
+		opacity: 1;
+		-moz-transition-duration: 1s;
+		display: block;
+		margin: auto;
+		width: 100%;
+		height: 100%;
+	}
+</style>
+
+<script type="text/javascript" src="images/image_data.js"></script>
+<script type="text/javascript" src="images/image_data2.js"></script>
+<script type="text/javascript" src="sounds/sound_data.js"></script>
+</head>
+
+
+
+<body>
+<!--
+====================================================
+
+	Statistics & Panels
+
+====================================================
+-->
+<script type="text/javascript">
+	var Statistics = function(
+						fnRetrieveTickParams,	//!< a function to return per-tick-params as json { time, flying_objects_count, comets_count, enemies_count, alive_players_count, players_count }
+						fnRetrieveStaticParams	//!< a function to return manually updated data as json { display_width, display_height }
+					  )
+	{
+		// -- facts -------
+		this.FPS = 0;
+		this.time = 0;
+		this.resolutionWidth = 0;
+		this.resolutionHeight = 0;
+
+		this.flying_objects_count = 0;
+		this.comets_count = 0;
+		this.enemies_count = 0;
+		this.alive_players_count = 0;
+		this.players_count = 0;
+
+		//! Next frame tick.
+		this.tick = function()
+		{
+			++this.last_frame_count;
+
+			var t = (new Date()).getTime();
+			var dt = t - this.last_frame_time;
+
+			if( dt > 500 )
+			{
+				this.FPS = Math.floor(this.last_frame_count * 10000 / dt) / 10;
+				this.last_frame_time = t;
+				this.last_frame_count = 0;
+			}
+
+			this.update_tick_params();
+		}
+
+		//! Update statistics others than frame ticks.
+		this.update = function()
+		{
+			var params = this.fnRetrieveStaticParams();
+			this.resolutionWidth = params.display_width;
+			this.resolutionHeight = params.display_height;
+
+			this.update_tick_params();
+		}
+
+		// -- internals ---------------------------------------
+		this.last_frame_time = (new Date()).getTime();
+		this.last_frame_count = 0;
+		this.fnRetrieveTickParams = fnRetrieveTickParams;
+		this.fnRetrieveStaticParams = fnRetrieveStaticParams;
+
+		//private
+		this.update_tick_params = function()
+		{
+			var params = this.fnRetrieveTickParams();
+			this.time = params.time;
+			this.flying_objects_count = params.flying_objects_count;
+			this.comets_count = params.comets_count;
+			this.enemies_count = params.enemies_count;
+			this.alive_players_count = params.alive_players_count;
+			this.players_count = params.players_count;
+		}
+
+		this.update();
+	}
+
+	var StatisticsPanel = function( statistics )
+	{
+		this.elPanel = document.getElementById("InfoPanel");
+		this.elFPS = document.getElementById("StatisticsPanel_FPS");
+		this.elTime = document.getElementById("StatisticsPanel_Time");
+		this.elFlyingObjectsCount = document.getElementById("StatisticsPanel_FlyingObjectsCount");
+		this.elCometsCount = document.getElementById("StatisticsPanel_CometsCount");
+		this.elEnemiesCount = document.getElementById("StatisticsPanel_EnemiesCount");
+		this.elPlayersCount = document.getElementById("StatisticsPanel_PlayersCount");
+		this.elResolution = document.getElementById("StatisticsPanel_Resolution");
+
+		this.statistics = statistics;
+
+		//! prefixes a string with a prefix string to fit the desired minimum length
+		//! @remarks useful to prefix a number with zeros
+		function prefixing( s, prefix, min_length )
+		{
+			while( s.length < min_length )
+				s = prefix + s;
+			return s;
+		}
+
+		this.displayStatistics = function()
+		{
+			if( this.is_visible() )
+			{
+				this.elFPS.innerHTML = this.statistics.FPS.toFixed(1).toString();
+				var days = Math.floor( this.statistics.time / 86400000 );
+				var t = new Date( this.statistics.time - days * 86400000 - 3600000 );
+				this.elTime.innerHTML = (days > 0 ? days.toString() + "d " : "") + t.toTimeString().substr(0, 8) + "." + prefixing( t.getMilliseconds().toString(), "0", 3 );
+				this.elFlyingObjectsCount.innerHTML = this.statistics.flying_objects_count.toString();
+				this.elCometsCount.innerHTML = this.statistics.comets_count.toString();
+				this.elEnemiesCount.innerHTML = this.statistics.enemies_count.toString();
+				this.elPlayersCount.innerHTML = this.statistics.alive_players_count + " of " + this.statistics.players_count;
+				this.elResolution.innerHTML = this.statistics.resolutionWidth + " x " + this.statistics.resolutionHeight;
+			}
+		}
+
+		this.is_visible = function() { return this.elPanel.style.display !== "none"; }
+
+		this.show = function( bShow )
+		{
+			this.elPanel.style.display = bShow ? "block" : "none";
+			this.displayStatistics();
+		}
+	}
+
+	var DebugPanel = function()
+	{
+		this.elPanel = document.getElementById("DebugPanel");
+		this.elMessage = document.getElementById("DebugPanel_Message");
+
+		this.write = function( message )
+		{
+			this.elPanel.style.display = "block";
+			this.elMessage.innerHTML = message;
+		}
+	}
+</script>
+
+<style type="text/css">
+	#InfoPanel
+	{
+		position: absolute;
+		width: 200px;
+		top: 26px;
+		right: 25px;
+		text-align: right;
+		font: 11px Verdana;
+		color: #bbb;
+		z-index: 8;
+	}
+	#InfoPanel .sep { margin: 10px 0px; }
+	#InfoPanel table { padding: 0px; margin: 0px; }
+	#InfoPanel div,td
+	{
+		font: 11px Verdana;
+	}
+	#InfoPanel .title
+	{
+		font-weight: bold;
+		color: #fff;
+		/*background-color: #304;*/
+	}
+	#InfoPanel .header
+	{
+		color: #888;
+	}
+	#InfoPanel .data
+	{
+		margin-left: 5px;
+	}
+	#InfoPanel #DebugPanel
+	{
+		margin-bottom: 15px;
+		/*visibility: hidden;*/
+	}
+</style>
+
+<div id="InfoPanel" style="display: none;" onmousedown="if (onNowhereMouseDown) onNowhereMouseDown();">
+	<div id="StatisticsPanel">
+		<!--<div class="title">Statistics</div>-->
+		<div><span class="header">FPS:</span><span id="StatisticsPanel_FPS" class="data"></span></div>
+		<div><span class="header">time:</span><span id="StatisticsPanel_Time" class="data"></span></div>
+		<div><span class="header">flying objects:</span><span id="StatisticsPanel_FlyingObjectsCount" class="data"></span></div>
+		<div><span class="header">comets:</span><span id="StatisticsPanel_CometsCount" class="data"></span></div>
+		<div><span class="header">enemies:</span><span id="StatisticsPanel_EnemiesCount" class="data"></span></div>
+		<div><span class="header">players:</span><span id="StatisticsPanel_PlayersCount" class="data"></span></div>
+		<div class="header">size of universe:</div><div id="StatisticsPanel_Resolution" class="data"></div>
+	</div>
+
+	<div class="sep"></div>
+
+	<div id="DebugPanel" style="display: none;">
+		<!--<div class="title">Debug</div>-->
+		<div id="DebugPanel_Message"></div>
+	</div>
+</div>
+
+<!--
+==========================================
+
+	ProgressPanel
+
+==========================================
+-->
+<script type="text/javascript">
+	var ProgressPanel = function()
+	{
+		this.elPanel = document.getElementById("ProgressPanel");
+		this.elBar = document.getElementById("ProgressPanel_Bar");
+		this.elText = document.getElementById("ProgressPanel_Text");
+
+		this.setPercent = function( n )
+		{
+			if( n < 0 ) n = 0;
+			else if( n > 100 ) n = 100;
+
+			this.elBar.style.width = "" + n + "%";
+			this.show( true );
+		}
+
+		this.show = function( bShow )
+		{
+			this.elPanel.style.display = bShow ? "block" : "none";
+		}
+
+		this.setText = function( text )
+		{
+			this.elText.innerHTML = text;
+		}
+	}
+</script>
+
+<style type="text/css">
+	#ProgressPanel
+	{
+		position: absolute;
+		width: 80%;
+		height: 10%;
+		top: 45%;
+		left: 10%;
+		text-align: center;
+		opacity: .5;
+		filter: alpha(opacity=50);
+		background-color: #444;
+	}
+	#ProgressPanel .container
+	{
+		position: absolute;
+		display: block;
+		border: solid 10px #444;
+		top: -10px;
+		left: -10px;
+		width: 100%;
+		height: 100%;
+	}
+	#ProgressPanel .bar
+	{
+		height: 100%;
+		background-color: #000;
+	}
+	#ProgressPanel .text
+	{
+		position: relative;
+		top: -100%;
+		height: 100%;
+		background-color: transparent;
+		color: #fff;
+		width: 100%;
+	}
+	#ProgressPanel .text td
+	{
+		vertical-align: middle;
+		font: bold 24px Verdana, sans serif;
+		color: #666;
+	}
+</style>
+
+<div id="ProgressPanel" style="display: none;">
+	<div class="container">
+		<div class="bar" id="ProgressPanel_Bar" style="width: 0%;"></div>
+		<table cellpadding='0' cellspacing='0' border='0' class="text">
+			<tr>
+			<td><div id="ProgressPanel_Text"></div></td>
+			</tr>
+		</table>
+	</div>
+</div>
+
+
+
+<!--
+==========================================
+
+	MainMenu
+
+==========================================
+-->
+<style type="text/css">
+	.cmenu
+	{
+		/*padding: 16px;*/
+		/* Note: We are not using a padding here because IE8, Firefox and Chrome handle those differently.
+			IE8 keeps the outer width as specified in the style here whereas the others add the padding
+			to the width. Instead, we make a child div or table with the padding. */
+		position: absolute;
+		top: -10px;
+		width: 100%;
+		z-index: 10;
+	}
+	.cmenu .title-spacer
+	{
+		font-size: 130px;
+	}
+	.cmenu .menu_title
+	{
+		color: #999;
+		font: bold 10px Verdana;
+		white-space: nowrap;
+		position: absolute;
+		top: 0px;
+		height: 0px;
+		z-index: 11;
+	}
+	.cmenu .menu_title div
+	{
+		position: relative;
+		left: -370px;
+	}
+	.cmenu .menu_title .version
+	{
+		width: 730px;
+		text-align: right;
+		position: relative;
+		top: -30px;
+	}
+	.cmenu .menu_title a
+	{
+		text-decoration: underline;
+		color: #bbb;
+	}
+	.cmenu .framecontainer
+	{
+		position: absolute;
+		top: 150px;
+		width: 100%;
+	}
+	.cmenu .frame
+	{
+		padding: 6px;
+		background-color: #224;
+		color: #bbb;
+		font: 16px Courier New;
+		opacity: 0.7;
+		filter: alpha(opacity=70);
+	}
+	.cmenu .frame td
+	{
+		font: 16px Courier New;
+		padding: 1px 20px;
+		white-space: nowrap;
+	}
+	.cmenu .frame td a
+	{
+		color: #bbd;
+		font: 11px Courier New;
+	}
+	.menu_sep { padding: 6px; }
+	.menu_chapter
+	{
+		padding: 2px;
+		color: #ccf;
+		text-align: center;
+		background: #335;
+	}
+	.disabled-menu-item
+	{
+		padding: 1px 20px;
+		color: #fff;
+		text-align: center;
+		text-decoration: none;
+		background: transparent;
+		white-space: nowrap;
+	}
+	.menu-item-unfocused
+	{
+		cursor: pointer;
+		padding: 1px 20px;
+		text-align: center;
+		text-decoration: none;
+		color: #fff;
+		background: transparent;
+		white-space: nowrap;
+	}
+	.menu-item-focused
+	{
+		cursor: pointer;
+		padding: 1px 20px;
+		text-align: center;
+		text-decoration: none;
+		color: #000;
+		background: #fff;
+		white-space: nowrap;
+	}
+	#MainMenu .frame { position: relative; z-index: 6; }
+	#MainMenu .click-through
+	{
+		position: absolute;
+		z-index: -1;
+		width: 100%;
+		height: 100%;
+		top: 0px;
+		left: 0px;
+	}
+</style>
+
+<div id="MainMenuWithTitle" class="cmenu">
+	<table width="0"><tr><td width="50%"></td><td width="0%">
+		<div class='menu_title'>
+			<div><img src="title.png"/></div>
+			<!--<div>MASTERROIDS-JS-CANVAS</div>-->
+			<div class="version">
+				version 1.0<br/>
+				by Roman Komary
+			</div>
+		</div>
+
+		<div class="title-spacer">&nbsp;</div>
+	</td><td width="50%"></td></tr></table>
+
+	<table id="MainMenu" class="framecontainer" style="display: none;" width="0"><tr><td width="50%"></td><td width="0%" class="frame">
+		<div class="click-through" onmousedown="if (onNowhereMouseDown) onNowhereMouseDown();"></div>
+
+		<div id="MainMenuPaused" style="display: none;">
+			<div class='menu_chapter'>paused</div>
+			<div class='menu-item-unfocused' data-menu-item-id='continue' style='margin: 3px;'>continue</div>
+			<div class='menu_sep'></div>
+		</div>
+
+		<div class='menu_chapter'>New Game</div>
+		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
+			<tr>
+				<td style='padding-right: 10px;'>players</td>
+				<td class='menu-item-unfocused' data-menu-item-id='1pl'>1</td>
+				<td class='menu-item-unfocused' data-menu-item-id='2pl'>2</td>
+				<td class='menu-item-unfocused' data-menu-item-id='3pl'>3</td>
+				<td class='menu-item-unfocused' data-menu-item-id='4pl'>4</td>
+				<td class='menu-item-unfocused' data-menu-item-id='demo' style='min-width: 50px;'>demo</td>
+			</tr>
+		</table>
+		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
+			<tr>
+				<td>crazy fun mode:</td>
+				<td width='50' class='menu-item-unfocused' data-menu-item-id='optCrazyFunModeOnOff'>off</td>
+			</tr>
+		</table>
+		<div class='menu_sep'></div>
+
+		<div class='menu_chapter'>Options</div>
+		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
+			<tr>
+				<td>team mode:</td>
+				<td width='50' class='menu-item-unfocused' data-menu-item-id='optTeamModeOnOff'>off</td>
+			</tr>
+			<tr>
+				<td>sounds:</td>
+				<td class='menu-item-unfocused' data-menu-item-id='optSoundsOnOff'>on</td>
+			</tr>
+			<tr>
+				<td>navigator:</td>
+				<td class='menu-item-unfocused' data-menu-item-id='optSwitchNavigationControls'>off</td>
+			</tr>
+			<tr>
+				<td>engine statistics:</td>
+				<td class='menu-item-unfocused' data-menu-item-id='optStatisticsOnOff'>off</td>
+			</tr>
+		</table>
+		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
+			<tr>
+				<td style='padding-right: 10px;'>player settings</td>
+				<td class='menu-item-unfocused' data-menu-item-id='1pl_settings'>1</td>
+				<td class='menu-item-unfocused' data-menu-item-id='2pl_settings'>2</td>
+				<td class='menu-item-unfocused' data-menu-item-id='3pl_settings'>3</td>
+				<td class='menu-item-unfocused' data-menu-item-id='4pl_settings'>4</td>
+			</tr>
+		</table>
+
+		<table cellpadding='0' cellspacing='0' border='0' width='100%' style='padding-top: 8px;'>
+			<tr>
+				<td align='center'><a href='README.md' target='_blank'>read me</a></td>
+				<td class='menu-item-unfocused' data-menu-item-id='menuHighscores'>highscores</td>
+				<td align='center'><a href='license' target='_blank'>license</a></td>
+			</tr>
+		</table>
+	</td><td width="50%"></td></tr></table>
+</div>
+
+
+
+<!--
+==========================================
+
+	PlayerSettingsPanel
+
+==========================================
+-->
+<script type="text/javascript">
+	var PlayerSettingsPanel = function( keyBoard, spriteFactories, localPlayerDefs )
+	{
+		var that = this;
+
+		this.panelMenu = new kor.PanelMenu( document.getElementById("PlayerSettingsPanel"), keyBoard );
+		this.id = this.panelMenu.id;
+		this.elPlayerNr = document.getElementById("PlayerSettingsPanel_PlayerNr");
+		this.elShipColor = document.getElementById("PlayerSettingsPanel_ShipColor");
+		this.elShipColorSaturation = document.getElementById("PlayerSettingsPanel_ShipColorSaturation");
+		this.elWingsColor = document.getElementById("PlayerSettingsPanel_WingsColor");
+		this.elWingsColorSaturation = document.getElementById("PlayerSettingsPanel_WingsColorSaturation");
+		this.elApply = document.getElementById("PlayerSettingsPanel_Apply");
+		this.elApply.onclick = function() { if (that.onApply) that.onApply( that.player_index ); };
+		this.elCancel = document.getElementById("PlayerSettingsPanel_Cancel");
+		this.elCancel.onclick = function() { if (that.onCancel) that.onCancel( that.player_index ); };
+		this.elKeys = [];
+
+		this.onApply = null;		//!< function( player_index )
+		this.onCancel = null;		//!< function( player_index )
+
+		var options = [];
+		var index = 0;
+		var indices = {};
+		for( var keyCode = 0 ; keyCode < 256 ; ++keyCode )
+			if (keyBoard.has_name_for_keycode( keyCode ))
+			{
+				options.push({ value: keyCode.toString(), text: keyBoard.get_name_for_keycode( keyCode ) });
+				indices["k" + keyCode] = index++;
+			}
+
+		for( var i = 0 ;; ++i )
+		{
+			var elSelect = document.getElementById("PlayerSettingsPanel_Key" + i);
+			if (!elSelect) break;
+			this.elKeys.push( elSelect );
+
+			for( var j = 0 ; j < options.length ; ++j )
+			{
+				var elOption = document.createElement("option");
+				elOption.value = options[j].value;
+				elOption.text = options[j].text;
+				elSelect.options.add( elOption );
+			}
+		}
+
+		this.open = function( player_index )
+		{
+			this.player_index = player_index;
+			this.elPlayerNr.innerHTML = (player_index + 1).toString();
+
+			this.shipColorSettingsCookie = spriteFactories.Ship_colors;
+
+			var tint = this.shipColorSettingsCookie.value[player_index];
+			this.elShipColor.value = (tint.color || "#808080").toString();
+			this.elShipColorSaturation.value = (tint.saturation != null ? tint.saturation : 0.5).toString();
+			tint.wings = tint.wings || {};
+			this.elWingsColor.value = (tint.wings.color || "#000000").toString();
+			this.elWingsColorSaturation.value = (tint.wings.saturation != null ? tint.wings.saturation : 1).toString();
+
+			for( var i in this.elKeys )
+			{
+				var elSelect = this.elKeys[i];
+				var action = elSelect.getAttribute("data-key-action");
+				var keyCode = localPlayerDefs.player_key_IDs.value[player_index][action];
+				var index = indices["k" + keyCode];
+				if (index != null)
+					elSelect.selectedIndex = index;
+			}
+
+			this.panelMenu.show( true );
+		}
+
+		this.apply = function( gameSession )
+		{
+			if (!this.is_visible() || this.player_index == null)
+				return;
+
+			if (this.shipColorSettingsCookie)
+			{
+				var tint = this.shipColorSettingsCookie.value[this.player_index];
+				tint.color = this.elShipColor.value;
+				try { tint.saturation = parseFloat( this.elShipColorSaturation.value ); }
+				catch( e ) {  }
+				tint.wings = tint.wings || {};
+				tint.wings.color = this.elWingsColor.value;
+				try { tint.wings.saturation = parseFloat( this.elWingsColorSaturation.value ); }
+				catch( e ) {  }
+				this.shipColorSettingsCookie.store();
+			}
+
+			spriteFactories.CreatePlayerFactories( this.player_index );
+
+			// Also the existing player ship flying_object's need to be updated to use the new sprite factories.
+			// They retrieve the factories on-demand anyway, but the active sprite needs to be updated explicitely.
+			if (gameSession)
+			{
+				var FO = gameSession.player_flying_objects[this.player_index];
+				if (FO)
+					FO.update_active_sprite();
+			}
+
+			// get selected keys
+			for( var i in this.elKeys )
+			{
+				var elSelect = this.elKeys[i];
+				var action = elSelect.getAttribute("data-key-action");
+				var keyCode = elSelect.options[elSelect.selectedIndex].value;
+				localPlayerDefs.player_key_IDs.value[this.player_index][action] = keyCode;
+			}
+			localPlayerDefs.player_key_IDs.store();		// save keys in cookie
+
+			this.panelMenu.show( false );
+			this.player_index = null;
+		}
+
+		this.cancel = function()
+		{
+			if (!this.is_visible() || this.player_index == null)
+				return;
+
+			this.panelMenu.show( false );
+			this.player_index = null;
+		}
+
+		this.is_visible = function() { return this.panelMenu.is_visible(); }
+	}
+</script>
+
+<style type="text/css">
+	#PlayerSettingsPanel .buttons { text-align: center; }
+	#PlayerSettingsPanel .button { margin: 8px 5px 0px 5px; min-width: 150px; }
+	#PlayerSettingsPanel .indent { padding-left: 50px; }
+	#PlayerSettingsPanel select { width: 100%; }
+	#PlayerSettingsPanel .colorize { width: 70px; }
+	#PlayerSettingsPanel .bottom { font-size: 11px; text-align: center; padding-top: 5px; }
+</style>
+
+<div id="PlayerSettingsPanel" class="cmenu" style="z-index: 9; display: none;">
+	<table width="0" class="framecontainer"><tr><td width="50%"></td><td width="0%" class="frame">
+		<div class='menu_chapter'>Player <span id="PlayerSettingsPanel_PlayerNr"></span> settings:</div>
+
+		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
+			<tr>
+				<td>ship:</td><td>body:</td><td>wings:</td>
+			</tr>
+			<tr>
+				<td class='indent'>color:</td>
+				<td class='menu-item-unfocused'><input type="text" id="PlayerSettingsPanel_ShipColor" name="PlayerSettingsPanel_ShipColor" value="" class='colorize' /></td>
+				<td class='menu-item-unfocused'><input type="text" id="PlayerSettingsPanel_WingsColor" name="PlayerSettingsPanel_WingsColor" value="" class='colorize' /></td>
+			</tr>
+			<tr>
+				<td class='indent'>specularity:</td>
+				<td class='menu-item-unfocused'><input type="text" id="PlayerSettingsPanel_ShipColorSaturation" name="PlayerSettingsPanel_ShipColorSaturation" value="" class='colorize' /></td>
+				<td class='menu-item-unfocused'><input type="text" id="PlayerSettingsPanel_WingsColorSaturation" name="PlayerSettingsPanel_WingsColorSaturation" value="" class='colorize' /></td>
+			</tr>
+
+			<tr>
+				<td colspan="3">keys:</td>
+			</tr>
+			<tr>
+				<td class='indent'>turn left:</td>
+				<td colspan='2' class='menu-item-unfocused'><select id='PlayerSettingsPanel_Key0' data-key-action='left'></select></td>
+			</tr>
+			<tr>
+				<td class='indent'>turn right:</td>
+				<td colspan='2' class='menu-item-unfocused'><select id='PlayerSettingsPanel_Key1' data-key-action='right'></select></td>
+			</tr>
+			<tr>
+				<td class='indent'>accelerate:</td>
+				<td colspan='2' class='menu-item-unfocused'><select id='PlayerSettingsPanel_Key2' data-key-action='forewd'></select></td>
+			</tr>
+			<tr>
+				<td class='indent'>slow down:</td>
+				<td colspan='2' class='menu-item-unfocused'><select id='PlayerSettingsPanel_Key3' data-key-action='backwd'></select></td>
+			</tr>
+			<tr>
+				<td class='indent'>fire:</td>
+				<td colspan='2' class='menu-item-unfocused'><select id='PlayerSettingsPanel_Key4' data-key-action='fire'></select></td>
+			</tr>
+			<tr>
+				<td class='indent'>shield:</td>
+				<td colspan='2' class='menu-item-unfocused'><select id='PlayerSettingsPanel_Key5' data-key-action='shield'></select></td>
+			</tr>
+		</table>
+
+		<div class='buttons'>
+			<input type='button' value='Apply' class='button' id="PlayerSettingsPanel_Apply"></input>
+			<input type='button' value='Cancel' class='button' id="PlayerSettingsPanel_Cancel"></input>
+		</div>
+
+		<div class='bottom'>Notice, applying can take some seconds.</div>
+	</td><td width="50%"></td></tr></table>
+</div>
+
+
+
+<script type="text/javascript">
+	//! sprite kinds
+	var SpriteKinds =
+	{
+		// notice, when you add new kinds, you can insert them somewhere inbetween the range of values. Just be sure to keep all values consecutive.
+		none: -1,			// should be -1 as expected by kor.sprite.js library
+		playership : 0,
+		playershield: 1,
+		// Be warned: If you add more player sprite kinds, be sure to check collision and near objects detections in the actuator functions. There might be arrays (e.g. kinds_for_dangers_target or kinds_for_extras_collision) or whatever which check for sprite kinds if to collide or not. Maybe you need to update them to take the new player sprite kinds into account.
+		shot: 2,
+		explosion: 3,
+		mine: 4,
+		comet: 5,
+		guard: 6,			// this is the guard flying around the player
+		protector: 7,		// this is the protector flying around the player
+		danger: 8,
+		extra: 9,
+		laser: 10,
+		missile: 11,
+		flame: 12,
+		enemy: 13,
+		blue_flare: 14,
+		flares: 15,
+		enemy_shot: 16,
+		shockwave: 17,
+		smoke: 18
+	}
+
+	// -- specific (instanciated) sprite factories -------------------------------------
+
+	var PredefinedSpriteFactories = function( imageLoader )
+	{
+		this.Dummy_factory = new kor.SpriteDummyFactory;
+
+		this.Comet_sprite_factories =
+		{
+			sprite_factories: (function()
+			{
+				var factories = [];
+				for( var n = 1 ;; ++n )
+				{
+					var nr = n.toString();
+					if( n < 10 ) nr = "0" + nr;
+
+					var sA = "comet" + nr + "a.png";
+					var sB = "comet" + nr + "b.png";
+					var sC = "comet" + nr + "c.png";
+					if( image_data[sA] == null )
+						break;
+
+					factories.push([
+						new kor.SpriteFactory( SpriteKinds.comet, sA, 0, imageLoader ),
+						new kor.SpriteFactory( SpriteKinds.comet, sB, 0, imageLoader ),
+						new kor.SpriteFactory( SpriteKinds.comet, sC, 0, imageLoader )
+					]);
+				}
+				return factories;
+			})(),
+
+			/*!
+				 @param level
+				 1-based level number
+
+				 @param size_index
+				 0 = big, 1 = medium, 2 = small
+			*/
+			get_factory: function( level, size_index )
+			{
+				var i = (level - 1) % this.sprite_factories.length;
+				return this.sprite_factories[i][size_index];
+			}
+		}
+
+		/*!
+			@param tint
+			either { color },
+			or { color, saturation },
+			or { color, saturation, wings: { color, saturation } }
+			wings and the saturations are each optional
+		*/
+		function ship_command( tint )
+		{
+			return {
+				op: "combine",
+				globalAlpha: 1,
+				sources:
+				[
+					tint.wings ?
+						{
+							op: "tint",
+							source:
+							{
+								op: "get",
+								resource: { pre: "ship_wings", post: ".png", start: 0, last: 79, min_digits: 2 }
+							},
+							color: tint.wings.color,
+							saturation: (tint.wings.saturation != null ? tint.wings.saturation : 1)
+						} :
+						{
+							op: "get",
+							resource: { pre: "ship_wings", post: ".png", start: 0, last: 79, min_digits: 2 }
+						},
+					{
+						op: "tint",
+						source:
+						{
+							op: "get",
+							resource: { pre: "ship_weapons", post: ".png", start: 0, last: 79, min_digits: 2 }
+						},
+						color: tint.color,
+						saturation: (tint.saturation != null ? tint.saturation : 0.5)
+					}
+				]
+			};
+		}
+
+		function shielded_ship_command( tint, shield_tint )
+		{
+			if( !shield_tint )
+				shield_tint = tint;
+
+			return {
+				op: "combine",
+				globalAlpha: 0.75,
+				sources:
+				[
+					ship_command( tint ),
+					{
+						op: "transform",
+						source:
+						{
+							op: "tint",
+							source:
+							{
+								op: "get",
+								resource: "shield.png",
+								adjust_index: function( index ) { return 0; }
+							},
+							color: shield_tint.color,
+							saturation: (shield_tint.saturation != null ? shield_tint.saturation : 0.25)
+						},
+						rotate_fn: function( command, imageCompositor )
+						{
+							var s = imageCompositor.user_data.nImageIndex / 80;	// the count is 80 which is defined by the above "get" command (see start and last)
+							return -s * kor.Vec.twoPI;
+						}
+					},
+				]
+			};
+		}
+
+		/*!
+			@param tint
+			either { color },
+			or { color, saturation }
+		*/
+		function extra_command( tint )
+		{
+			return {
+				op: "tint",
+				source:
+				{
+					op: "get",
+					resource: { pre: "extra", post: ".png", start: 0, last: 39, min_digits: 2 }
+				},
+				color: tint.color,
+				saturation: (tint.saturation != null ? tint.saturation : 0.8)
+			};
+		}
+
+		this.Explosion_A_factory = new kor.SpriteFactory( SpriteKinds.explosion, { pre: "expl-a", post: ".png", start: 0, last: 17, min_digits: 2 }, 9, imageLoader );
+		this.Explosion_B_factory = new kor.SpriteFactory( SpriteKinds.explosion, { pre: "expl-b", post: ".png", start: 0, last: 17, min_digits: 2 }, 9, imageLoader );
+		this.Explosion_C_factory = new kor.SpriteFactory( SpriteKinds.explosion, { pre: "expl-c", post: ".png", start: 0, last: 17, min_digits: 2 }, 9, imageLoader );
+
+		this.Explosion_factories = [this.Explosion_A_factory, this.Explosion_B_factory, this.Explosion_C_factory];
+
+		this.Ship_colors = new kor.JCookie( "Masterroids_Ship_colors", [{ color: "#000055" }, { color: "#990000", saturation: 0.4 }, { color: "#550044" }, { color: "#004400" }] );
+		// note: previous shield colors: "#006", "#600", "#725", "#060"
+		this.Ship_factories = [null, null, null, null];
+		this.Shield_factories = [null, null, null, null];
+
+		this.CreatePlayerFactories = function( player_index )
+		{
+			var Ship_factory = new kor.SpriteFactory( SpriteKinds.playership, ship_command( this.Ship_colors.value[player_index] ), 10, imageLoader, null, null, null, null, null, true );
+
+			var Shield_factory = new kor.SpriteFactory( SpriteKinds.playershield, shielded_ship_command( this.Ship_colors.value[player_index] ), 10, imageLoader, null, null, null, null, null, true );
+
+			this.Ship_factories[player_index] = Ship_factory;
+			this.Shield_factories[player_index] = Shield_factory;
+		}
+
+		this.CreatePlayerFactories( 0 );
+		this.CreatePlayerFactories( 1 );
+		this.CreatePlayerFactories( 2 );
+		this.CreatePlayerFactories( 3 );
+
+		var flame_pos_offset = { x: 0.5, y: 0.5 };
+		var flame_hot_offset = { x: 0.4, y: 0 };
+		this.Flame_A_factory = new kor.SpriteFactory( SpriteKinds.flame, "flamea.png", 0, imageLoader, null, null, 1, "lighter", true, null, flame_pos_offset, flame_hot_offset );
+		this.Flame_B_factory = new kor.SpriteFactory( SpriteKinds.flame, "flameb.png", 0, imageLoader, null, null, 1, "lighter", true, null, flame_pos_offset, flame_hot_offset );
+
+		this.Flame_factories = [this.Flame_A_factory, this.Flame_B_factory];
+
+		this.Shot1_factory = new kor.SpriteFactory( SpriteKinds.shot, "shot1.png", 20, imageLoader, null, null, 1, "lighter" );
+		this.Shot2_factory = new kor.SpriteFactory( SpriteKinds.shot, "shot2.png", 20, imageLoader, null, null, 1, "lighter" );
+		this.Laser_factory = new kor.SpriteFactory( SpriteKinds.laser, "laser.png", 20, imageLoader, null, null, 1, "lighter", true );
+		this.Missile_factory = new kor.SpriteFactory( SpriteKinds.missile, { pre: "missle", post: ".png", start: 0, last: 39, min_digits: 2 }, 19, imageLoader, null, null, null, null, null, true );
+
+		this.Guard_factory = new kor.SpriteFactory( SpriteKinds.guard, "guard.png", 11, imageLoader );
+		this.Protector_factory = new kor.SpriteFactory( SpriteKinds.protector, "protector.png", 12, imageLoader );
+
+		this.Danger_factory = new kor.SpriteFactory( SpriteKinds.danger, { pre: "danger", post: ".png", start: 0, last: 39, min_digits: 2 }, 1, imageLoader );
+		this.Green_Extra_factory = new kor.SpriteFactory( SpriteKinds.extra, extra_command({ color: "#043" }), 2, imageLoader );
+		this.Red_Extra_factory = new kor.SpriteFactory( SpriteKinds.extra, extra_command({ color: "#602" }), 2, imageLoader );
+		this.Blue_Extra_factory = new kor.SpriteFactory( SpriteKinds.extra, extra_command({ color: "#016" }), 2, imageLoader );
+
+		this.Mine_factory = new kor.SpriteFactory( SpriteKinds.mine, "mine.png", 1, imageLoader );
+		this.Shockwave_factory = new kor.SpriteFactory( SpriteKinds.shockwave, "waveflare.png", 21, imageLoader, null, null, 1, "lighter" );
+
+		this.Enemy_factory = new kor.SpriteFactory( SpriteKinds.enemy, { pre: "enemy", post: ".png", start: 0, last: 79, min_digits: 2 }, 7, imageLoader, null, null, null, null, null, true );
+		this.Blue_flare_factory = new kor.SpriteFactory( SpriteKinds.blue_flare, "t_blue_flare.png", 8, imageLoader, null, null, 1, "lighter" );
+		this.Flares_factory = new kor.SpriteFactory( SpriteKinds.flares, { pre: "t_flare_", post: ".png", start: 0, last: 9 }, 6, imageLoader, null, null, 1, "lighter" );	// be sure to have its z-index below the blue flare and below the enemy shot (when using "source-over" composition)
+		this.Enemy_Shot_factory = new kor.SpriteFactory( SpriteKinds.enemy_shot, "enemy_shot.png", 18, imageLoader, null, null, 1, "lighter" );
+
+		this.Smoke_factory = new kor.SpriteFactory( SpriteKinds.smoke, "little_cloud.png", 0, imageLoader, null, null, null, null, true );
+	}
+</script>
+
+
+
+<script type="text/javascript">
+/*
+=========================================
+
+	Players and their settings
+
+	LocalPlayerDefs			definitions for all local players together
+							There should be only one such object in the whole application.
+
+	PlayerSettings			Settings for one player.
+
+	PlayerInputs			merges multiple inputs for a player
+
+	PlayerKeyboardInputs, PlayerNavigationControlsInputs, PlayerInputs require the following interface:
+		pullInputs()		returning the inputs (similar to the ones delivered by keyBoard)
+		reset_keys()		to reset states at the end of each animation frame
+
+	Player					the object with runtime states for one player
+							In principal this one does not care if it is a local player nor remote or whatever
+							although at the moment, only local players are supported.
+
+	LocalPlayerSettingsPrepared
+							This is the global object that for all possible local players contains settings,
+							initializes them and loads them.
+							Returns a PlayerSettings object for each player.
+
+	GamePlayers				This object contains a collection of all the players in the current game session.
+							That does not mean that all its players can play. It means that once each player was
+							participating on the current game session.
+							If a player died (lost all his lifes), he still is counted as player though he cannot
+							do anything anymore.
+
+							The main purpose of this object is to perform operations on all players in a game session at once.
+
+=========================================
+*/
+
+	var LocalPlayerDefs = function()
+	{
+		this.max_players_count = 4;
+
+		//! Each player uses key IDs for: left, right, forewd, backwd, fire, shield.
+		this.player_key_IDs = new kor.JCookie(
+			"Masterroids_LocalPlayers_Keys",
+			[
+				{ left: kor.Keys.keyCursorLeft, right: kor.Keys.keyCursorRight, forewd: kor.Keys.keyCursorUp, backwd: kor.Keys.keyCursorDown, fire: kor.Keys.keyShift, shield: kor.Keys.keyCtrl },
+				{ left: "S".charCodeAt(0), right: "F".charCodeAt(0), forewd: "E".charCodeAt(0), backwd: "D".charCodeAt(0), fire: "Q".charCodeAt(0), shield: "A".charCodeAt(0) },
+				{ left: "J".charCodeAt(0), right: "L".charCodeAt(0), forewd: "I".charCodeAt(0), backwd: "K".charCodeAt(0), fire: "H".charCodeAt(0), shield: "N".charCodeAt(0) },
+				{ left: "e".charCodeAt(0), right: "i".charCodeAt(0), forewd: "h".charCodeAt(0), backwd: "f".charCodeAt(0), fire: 96, shield: "n".charCodeAt(0) },
+				// note: small chars indicate the numbers on the keyboard's number-pad when the Numlock key is enabled.
+			]
+		);
+	}
+
+	var PlayerSettings = function(
+							local_player_index,		//!< the index of the player. must be < LocalPlayerDefs.max_players_count
+							localPlayerDefs
+						  )
+	{
+		this.local_player_index = local_player_index;
+		this.localPlayerDefs = localPlayerDefs;
+
+		this.keyIDs = localPlayerDefs.player_key_IDs.value[local_player_index];		//!< the key IDs to use for this player
+	}
+
+	var PlayerConsts =
+	{
+		start_lifes: 7
+	};
+
+	var PlayerKeyboardInputs = function( playerSettings, keyBoard )
+	{
+		this.playerSettings = playerSettings;
+		this.keyBoard = keyBoard;
+
+		//! Contains current states of the player keys for the different actions.
+		//! There are inputs for actions:			{ left, right, forewd, backwd, fire, shield }.
+		//! Each of the inputs contains states:		{ pressed, down, weight, since }. (as the Keyboard object does deliver it).
+		this.Inputs = { left: null, right: null, forewd: null, backwd: null, fire: null, shield: null };
+
+		//! Retrieves the current states of the player keys.
+		this.pullInputs = function()
+		{
+			this.Inputs.left	= this.keyBoard.get_key( this.playerSettings.keyIDs.left );
+			this.Inputs.right	= this.keyBoard.get_key( this.playerSettings.keyIDs.right );
+			this.Inputs.forewd	= this.keyBoard.get_key( this.playerSettings.keyIDs.forewd );
+			this.Inputs.backwd	= this.keyBoard.get_key( this.playerSettings.keyIDs.backwd );
+			this.Inputs.fire	= this.keyBoard.get_key( this.playerSettings.keyIDs.fire );
+			this.Inputs.shield	= this.keyBoard.get_key( this.playerSettings.keyIDs.shield );
+			return this.Inputs;
+		}
+
+		this.reset_keys = function()
+		{
+			this.keyBoard.reset_keys();
+		}
+	}
+
+	var PlayerNavigationControlsInputs = function( navigationControls, timer )
+	{
+		var that = this;
+		this.navigationControls = navigationControls;
+		this.timer = timer;
+
+		//! Contains current states of the player keys for the different actions.
+		//! There are inputs for actions:			{ left, right, forewd, backwd, fire, shield }.
+		//! Each of the inputs contains states:		{ pressed, down, weight, since }.
+		this.Inputs = { left: {}, right: {}, forewd: {}, backwd: {}, fire: {}, shield: {} };
+
+		this.pullInputs = function()
+		{
+			return this.Inputs;
+		}
+
+		this.reset_keys = function()
+		{
+			for( var name in this.Inputs )
+				this.Inputs[name].down = false;
+		}
+
+		function onDown( buttonname )
+		{
+			that.Inputs[buttonname] =
+			{
+				pressed:	true,					//!< (bool or null). true = pressed and held down, false/null = not pressed
+				down:		true,					//!< (bool or null). true = a down-key event for the current frame. false/null = not
+				weight:		1,						//!< a weight factor how strong the key is (actually this is for future input system other than keys with variable strength like moving a joystick or tilting a mobile device, etc.). In principal the weight can be used in conjunction with pressed state.
+				since:		that.timer.getTime()	//!< the timestamp when the key went down (since start of page, excluding any pause durations)
+			};
+		}
+
+		function onUp( buttonname )
+		{
+			that.Inputs[buttonname].pressed = false;
+		}
+
+		this.navigationControls.set_callbacks( onDown, onUp );
+	}
+
+	var PlayerInputs = function( register_these )
+	{
+		this.registered = [];
+
+		this.register = function( inputs )
+		{
+			this.registered.push( inputs );
+		}
+
+		if (register_these)
+			for( var n in register_these )
+				this.register( register_these[n] );
+
+		//! Contains current states of the player keys for the different actions.
+		//! There are inputs for actions:			{ left, right, forewd, backwd, fire, shield }.
+		//! Each of the inputs contains states:		{ pressed, down, weight, since }.
+		this.Inputs = { left: {}, right: {}, forewd: {}, backwd: {}, fire: {}, shield: {} };
+
+		this.pullInputs = function()
+		{
+			for( var name in this.Inputs )
+			{
+				var is_pressed = false;
+				var went_down = false;
+				var since = 0;
+				for( var n in this.registered )
+				{
+					var inputs = this.registered[n];
+					inputs = inputs.pullInputs()[name];
+					if (inputs.pressed) is_pressed = true;
+					if (inputs.pressed && inputs.down)
+					{
+						went_down = true;
+					}
+					if (inputs.since > since)
+						since = inputs.since;
+				}
+
+				this.Inputs[name] = {
+					pressed:	is_pressed,
+					down:		went_down,
+					weight:		1,
+					since:		since
+				};
+			}
+
+			return this.Inputs;
+		}
+
+		this.reset_keys = function()
+		{
+			for( var n in this.registered )
+				this.registered[n].reset_keys();
+		}
+	}
+
+	var Player = function(
+					playerInputs,
+					ship_factory,	//!< a kor.SpriteFactory or a function returning a kor.SpriteFactory
+					shield_factory	//!< a kor.SpriteFactory or a function returning a kor.SpriteFactory
+				  )
+	{
+		this.playerInputs = playerInputs;
+		this.ship_factory = ship_factory;
+		this.shield_factory = shield_factory;
+
+		this.lifes = PlayerConsts.start_lifes;		//!< number of lifes for reviving (so excluding player's current life)
+		this.score = 0;
+		this.shield = 1;
+
+		this.getShipFactory = function() { return this.ship_factory.create ? this.ship_factory : this.ship_factory(); }
+		this.getShieldFactory = function() { return this.shield_factory.create ? this.shield_factory : this.shield_factory(); }
+
+		this.alive = function()
+		{
+			return this.lifes >= 0;	// 0 is still alive, because lifes indicates the lifes left for reviving. but the player has a current life, too.
+		}
+
+		//! Contains current states of the player keys for the different actions.
+		//! There are inputs for actions:			{ left, right, forewd, backwd, fire, shield }.
+		//! Each of the inputs contains states:		{ pressed, down, weight, since }. (as the Keyboard object does deliver it).
+		this.Inputs = { left: null, right: null, forewd: null, backwd: null, fire: null, shield: null };
+
+		//! Retrieves the current states of the player keys.
+		this.pullInputs = function()
+		{
+			var inputs = this.playerInputs.pullInputs();
+			this.Inputs.left	= inputs.left;
+			this.Inputs.right	= inputs.right;
+			this.Inputs.forewd	= inputs.forewd;
+			this.Inputs.backwd	= inputs.backwd;
+			this.Inputs.fire	= inputs.fire;
+			this.Inputs.shield	= inputs.shield;
+		}
+
+		this.makeComputerPlayer = function()
+		{
+			//this.lifes = 50;		// for having more fun, we let a computer player have many lifes
+
+			// we init the Inputs object because simulated players do not retrieve from input devices
+			// In fact, we fake the inputs in act_player_ship & co.
+			this.Inputs.left	= { pressed: false, down: false, weight: 1, since: 0 };
+			this.Inputs.right	= { pressed: false, down: false, weight: 1, since: 0 };
+			this.Inputs.forewd	= { pressed: false, down: false, weight: 1, since: 0 };
+			this.Inputs.backwd	= { pressed: false, down: false, weight: 1, since: 0 };
+			this.Inputs.fire	= { pressed: false, down: false, weight: 1, since: 0 };
+			this.Inputs.shield	= { pressed: false, down: false, weight: 1, since: 0 };
+
+			this.playerInputs = null;		// just for completeness
+
+			// we do not pull any inputs for simulated players. But we (mis)use the method to reset the down-key event states for the computer players
+			this.pullInputs = function()
+			{
+				this.Inputs.left.down	= false;
+				this.Inputs.right.down	= false;
+				this.Inputs.forewd.down	= false;
+				this.Inputs.backwd.down	= false;
+				this.Inputs.fire.down	= false;
+				this.Inputs.shield.down	= false;
+			}
+		}
+	}
+
+	var LocalPlayerSettingsPrepared = function()
+	{
+		this.localPlayerDefs = new LocalPlayerDefs;
+		this.playerSettings = [];
+
+		for( var i = 0 ; i < this.localPlayerDefs.max_players_count ; ++i )
+		{
+			this.playerSettings.push( new PlayerSettings( i, this.localPlayerDefs ) );
+		}
+
+		this.getPlayerSettingsForPlayerIndex = function( player_index )
+		{
+			return this.playerSettings[player_index];
+		}
+	}
+
+	var GamePlayers = function()
+	{
+		this.players = [];			//!< array of { player, alive } objects
+		this.count = 0;
+		this.alive_count = 0;
+
+		this.addPlayer = function( ply )
+		{
+			this.players.push({ player: ply, alive: true });
+			this.count = this.players.length;
+			this.alive_count++;
+		}
+
+		this.pullInputs = function()
+		{
+			for( var i in this.players )
+				if( this.players[i].alive )
+					this.players[i].player.pullInputs();
+		}
+
+		this.reset_keys = function()
+		{
+			for( var i in this.players )
+				if (this.players[i].player.playerInputs)
+					this.players[i].player.playerInputs.reset_keys();
+		}
+	}
+</script>
+
+<!--
+==========================================
+
+	PlayerStatisticsPanel
+
+==========================================
+-->
+<script type="text/javascript">
+	var PlayerStatisticsPanel = function( id, bReverseLifeImages, bInvertShieldGauge )
+	{
+		this.id = id;
+		this.elPanel = document.getElementById( this.id );
+		this.elLifeImagesDiv = document.getElementById( this.id + "_life_images" );
+		this.elLifes = document.getElementById( this.id + "_lifes" );
+		this.elScore = document.getElementById( this.id + "_score" );
+		this.elShieldImageDiv = document.getElementById( this.id + "_shield_image" );
+		this.elShieldGaugeDiv = document.getElementById( this.id + "_shield_gauge" );
+		this.life_images = [];		// in fact, canvas elements
+		this.bReverseLifeImages = bReverseLifeImages;
+		this.bInvertShieldGauge = bInvertShieldGauge;
+
+		this.player = null;
+		this.max_gauge_height = 100;
+		this.max_visible_lifes = PlayerConsts.start_lifes;		// maximum number of visible life images. If a player has more lifes, this will be indicated only by the lifes value number display.
+
+		this.ship_factory;		// just used to check for factory change
+		this.shield_factory;	// just used to check for factory change
+
+		// last displayed values
+		this.displayed =
+		{
+			lifes: -1,
+			score: -1,
+			shield: -1
+		};
+
+		this.init = function( player )
+		{
+			if (this.elPanel)
+			{
+				this.player = player;
+				this.ship_factory = player.getShipFactory();
+				this.shield_factory = player.getShieldFactory();
+				this.setImages( this.ship_factory.create(), this.shield_factory.create() );
+				this.update();
+			}
+		}
+
+		this.updateImages = function()
+		{
+			if (this.elPanel && this.player)
+			{
+				var ship_factory = this.player.getShipFactory();
+				var shield_factory = this.player.getShieldFactory();
+				if (ship_factory != this.ship_factory || shield_factory != this.shield_factory)
+				{
+					this.ship_factory = ship_factory;
+					this.shield_factory = shield_factory;
+					this.setImages( this.ship_factory.create(), this.shield_factory.create() );
+				}
+			}
+		}
+
+		this.setImages = function( life_sprite, shield_sprite )
+		{
+			if (this.elPanel)
+			{
+				// remove old images
+				this.life_images = [];
+				this.elLifeImagesDiv.innerHTML = "";
+				this.elShieldImageDiv.innerHTML = "";
+
+				var imageCompositor = new kor.ImageCompositor(
+					function( resource, command, imageCompositor )
+					{
+						return resource == "shield" ? shield_sprite.get_image() : life_sprite.get_image();
+					}
+				);
+
+				for( var i = 0 ; i < this.max_visible_lifes ; ++i )
+				{
+					var media = imageCompositor.compose({
+						op: "copyCanvasResizedKeepAspectRatio",
+						max_width: 400,
+						max_height: 22,
+						source: { op: "get", resource: "life" }
+					});
+
+					var elCanvas = media.getCanvas();
+					if (elCanvas)
+					{
+						this.life_images.push( elCanvas );
+						this.elLifeImagesDiv.appendChild( elCanvas );
+					}
+				}
+
+				if (!this.is_left)
+					this.life_images.reverse();
+
+				var media = imageCompositor.compose({
+					op: "copyCanvasResizedKeepAspectRatio",
+					max_width: 20,
+					max_height: 200,
+					source: { op: "get", resource: "shield" }
+				});
+
+				var elCanvas = media.getCanvas();
+				if (elCanvas)
+					this.elShieldImageDiv.appendChild( elCanvas );
+
+				this.displayed.lifes = -1;
+				this.displayed.score = -1;
+				this.displayed.shield = -1;
+			}
+		}
+
+		this.show = function()
+		{
+			if (this.elPanel)
+				this.elPanel.style.display = "block";
+		}
+
+		this.hide = function()
+		{
+			if (this.elPanel)
+			{
+				this.elPanel.style.display = "none";
+				this.elLifeImagesDiv.innerHTML = "";
+				this.elShieldImageDiv.innerHTML = "";
+				this.player = null;
+			}
+		}
+
+		this.update = function()
+		{
+			this.updateImages();
+			this.update_lifes();
+			this.update_score();
+			this.update_shield();
+		}
+
+		this.update_lifes = function()
+		{
+			if (this.elPanel &&
+				this.player.lifes !== this.displayed.lifes)
+			{
+				this.displayed.lifes = this.player.lifes;
+				this.elLifes.innerHTML = this.displayed.lifes.toString();
+
+				for( var i = 0 ; i < this.max_visible_lifes ; ++i )
+					this.life_images[this.bReverseLifeImages ? this.max_visible_lifes - i - 1 : i].style.visibility = (i < this.displayed.lifes) ? "visible" : "hidden";
+			}
+		}
+
+		this.update_score = function()
+		{
+			if (this.elPanel &&
+				this.player.score !== this.displayed.score)
+			{
+				this.displayed.score = this.player.score;
+				this.elScore.innerHTML = this.displayed.score.toString();
+			}
+		}
+
+		this.update_shield = function()
+		{
+			if (this.elPanel &&
+				this.player.shield !== this.displayed.shield)
+			{
+				this.displayed.shield = this.player.shield;
+
+				var gauge_height = Math.round( this.max_gauge_height * this.displayed.shield );
+				if (this.bInvertShieldGauge)
+					gauge_height = this.max_gauge_height - gauge_height;
+				this.elShieldGaugeDiv.style.height = gauge_height + "px";
+			}
+		}
+	}
+</script>
+
+<style type="text/css">
+	.player_statistics
+	{
+		background: transparent;
+		position: absolute;
+		z-index: 1;
+		font: 15px Verdana;
+		color: #ddd;
+	}
+	.player_stat_text
+	{
+		font: 15px Verdana;
+		color: #ddd;
+	}
+	.player_stat_text td { white-space: nowrap; font: 15px Verdana; }
+	.player_shield_gauge_bk
+	{
+		/*background-color: #363;
+		opacity: 0.6;
+		filter: alpha(opacity=60);*/
+		background-color: #242;
+		width: 10px;
+	}
+	.player_shield_gauge
+	{
+		/*background-color: #8f8;
+		opacity: 0.4;
+		filter: alpha(opacity=40);*/
+		background-color: #595;
+		width: 10px;
+	}
+</style>
+
+<div id="player1_statistics" class="player_statistics" style="left: 0px; top: 0px; display: none;">
+	<!-- life & score row -->
+	<table width='0' cellpadding='0' cellspacing='0' border='0' class='player_stat_text'>
+		<tr valign='center'>
+			<td id="player1_statistics_life_images"></td>
+			<td>
+				<span id="player1_statistics_lifes" style="margin-left: 5px;">0</span>
+			</td>
+			<td>
+				<span id="player1_statistics_score" style="margin-left: 25px;">0</span>
+			</td>
+		</tr>
+	</table>
+	<!-- shield image -->
+	<div id="player1_statistics_shield_image" style="text-align: left;"></div>
+	<!-- shield gauge -->
+	<div style='text-align: left;'>
+		<div class='player_shield_gauge_bk' style='position: absolute; left: 5px; height: 100px;'></div>
+		<div class='player_shield_gauge' style='position: absolute; left: 5px; height: 0px;' id="player1_statistics_shield_gauge"></div>
+	</div>
+</div>
+
+<div id="player2_statistics" class="player_statistics" style="right: 0px; top: 0px; display: none;">
+	<!-- life & score row -->
+	<table width='0' cellpadding='0' cellspacing='0' border='0' class='player_stat_text'>
+		<tr valign='center'>
+			<td>
+				<span id="player2_statistics_score" style="margin-right: 25px;">0</span>
+			</td>
+			<td>
+				<span id="player2_statistics_lifes" style="margin-right: 5px;">0</span>
+			</td>
+			<td id="player2_statistics_life_images"></td>
+		</tr>
+	</table>
+	<!-- shield image -->
+	<div id="player2_statistics_shield_image" style="text-align: right;"></div>
+	<!-- shield gauge -->
+	<div style='text-align: right;'>
+		<div class='player_shield_gauge_bk' style='position: absolute; right: 5px; height: 100px;'></div>
+		<div class='player_shield_gauge' style='position: absolute; right: 5px; height: 0px;' id="player2_statistics_shield_gauge"></div>
+	</div>
+</div>
+
+<div id="player3_statistics" class="player_statistics" style="left: 0px; bottom: 0px; display: none;">
+	<!-- shield gauge -->
+	<div style='text-align: left; position: relative; bottom: 104px;'>
+		<div class='player_shield_gauge' style='position: absolute; left: 5px; height: 100px;'></div>
+		<div class='player_shield_gauge_bk' style='position: absolute; left: 5px; height: 0px;' id="player3_statistics_shield_gauge"></div>
+	</div>
+	<!-- shield image -->
+	<div id="player3_statistics_shield_image" style="text-align: left;"></div>
+	<!-- life & score row -->
+	<table width='0' cellpadding='0' cellspacing='0' border='0' class='player_stat_text'>
+		<tr valign='center'>
+			<td id="player3_statistics_life_images"></td>
+			<td>
+				<span id="player3_statistics_lifes" style="margin-left: 5px;">0</span>
+			</td>
+			<td>
+				<span id="player3_statistics_score" style="margin-left: 25px;">0</span>
+			</td>
+		</tr>
+	</table>
+</div>
+
+<div id="player4_statistics" class="player_statistics" style="right: 0px; bottom: 0px; display: none;">
+	<!-- shield gauge -->
+	<div style='text-align: right; position: relative; bottom: 104px;'>
+		<div class='player_shield_gauge' style='position: absolute; right: 5px; height: 100px;'></div>
+		<div class='player_shield_gauge_bk' style='position: absolute; right: 5px; height: 0px;' id="player4_statistics_shield_gauge"></div>
+	</div>
+	<!-- shield image -->
+	<div id="player4_statistics_shield_image" style="text-align: right;"></div>
+	<!-- life & score row -->
+	<table width='0' cellpadding='0' cellspacing='0' border='0' class='player_stat_text'>
+		<tr valign='center'>
+			<td>
+				<span id="player4_statistics_score" style="margin-right: 25px;">0</span>
+			</td>
+			<td>
+				<span id="player4_statistics_lifes" style="margin-right: 5px;">0</span>
+			</td>
+			<td id="player4_statistics_life_images"></td>
+		</tr>
+	</table>
+</div>
+
+
+
+<!--
+==========================================
+
+	NewLevelPanel
+
+==========================================
+-->
+<script type="text/javascript">
+	var NewLevelPanel = function()
+	{
+		this.elPanel = document.getElementById("new_level");
+		this.elContent = document.getElementById("new_level_content");
+
+		this.setContent = function( content )
+		{
+			if( this.elContent )
+				this.elContent.innerHTML = content;
+		}
+
+		this.show = function( bShow )
+		{
+			if( this.elPanel )
+				this.elPanel.style.display = bShow ? "block" : "none";
+		}
+	}
+</script>
+
+<style type="text/css">
+	#new_level
+	{
+		text-align: center;
+		position: absolute;
+		left: 0px;
+		top: 0px;
+		width: 100%;
+		height: 70%;
+		z-index: 2;
+		opacity: 0.5;
+		filter: alpha(opacity=50);
+	}
+	#new_level_content
+	{
+		padding: 10px 20px;
+		background-color: #103c33;
+		color: #ddfff4;
+		font: bold 30px Verdana;
+		text-align: center;
+		white-space: nowrap;
+	}
+</style>
+
+<div id="new_level" style="display: none;">
+	<table width="100%" height="100%" cellpadding='0' cellspacing='0' border='0'><tr valign="center" onmousedown="if (onNowhereMouseDown) onNowhereMouseDown();"><td width="50%"></td><td width="0%">
+		<div id="new_level_content"></div>
+	</td><td width="50%"></td></tr></table>
+</div>
+
+<!--
+==========================================
+
+	CurrentLevelPanel
+
+==========================================
+-->
+<script type="text/javascript">
+	var CurrentLevelPanel = function()
+	{
+		this.elPanel = document.getElementById("current_level");
+		this.elContent = document.getElementById("current_level_content");
+
+		this.setContent = function( content )
+		{
+			if( this.elContent )
+				this.elContent.innerHTML = content;
+		}
+
+		this.show = function( bShow )
+		{
+			if( this.elPanel )
+				this.elPanel.style.display = bShow ? "block" : "none";
+		}
+	}
+</script>
+
+<style type="text/css">
+	#current_level
+	{
+		text-align: center;
+		position: absolute;
+		left: 0px;
+		top: 3px;
+		width: 100%;
+		z-index: 2;
+		opacity: 0.5;
+		filter: alpha(opacity=50);
+	}
+	#current_level_content
+	{
+		padding: 0px 8px;
+		background-color: #103c33;
+		color: #fff;
+		font: 15px Verdana;
+		text-align: center;
+		white-space: nowrap;
+	}
+</style>
+
+<div id="current_level" style="display: none;">
+	<table width="100%" cellpadding='0' cellspacing='0' border='0'><tr valign="center"><td width="50%"></td><td width="0%">
+		<div id="current_level_content"></div>
+	</td><td width="50%"></td></tr></table>
+</div>
+
+
+
+<!--
+==========================================
+
+	GameOverPanel
+
+==========================================
+-->
+<script type="text/javascript">
+	var GameOverPanel = function()
+	{
+		this.elPanel = document.getElementById("game_over");
+		this.elContent = document.getElementById("game_over_content");
+
+		this.show = function( bShow )
+		{
+			if( this.elPanel )
+				this.elPanel.style.display = bShow ? "block" : "none";
+		}
+	}
+</script>
+
+<style type="text/css">
+	#game_over
+	{
+		text-align: center;
+		position: absolute;
+		left: 0px;
+		top: 0px;
+		width: 100%;
+		height: 90%;
+		z-index: 2;
+		opacity: 0.4;
+		filter: alpha(opacity=40);
+	}
+	#game_over_content
+	{
+		padding: 10px 20px;
+		background-color: #200;
+		color: #ffc;
+		font: bold 30px Verdana;
+		text-align: center;
+		white-space: nowrap;
+	}
+</style>
+
+<div id="game_over" style="display: none;">
+	<table width="100%" height="100%" cellpadding='0' cellspacing='0' border='0' onmousedown="if (onNowhereMouseDown) onNowhereMouseDown();"><tr valign="center"><td width="50%"></td><td width="0%">
+		<div id="game_over_content">GAME OVER</div>
+	</td><td width="50%"></td></tr></table>
+</div>
+
+
+
+<!--
+==========================================
+
+	NavigationControls
+
+	On-screen navigation controls
+
+==========================================
+-->
+<script type="text/javascript">
+	var NavigationControls = function()
+	{
+		var idprefix = "navigationcontrol_";
+		this.elPanel_Front = document.getElementById( "navigation_controls_front" );
+		this.elPanel_Back = document.getElementById( "navigation_controls_back" );
+		this.elPause = document.getElementById( idprefix + "Pause" );
+		this.elLeft = document.getElementById( idprefix + "Left" );
+		this.elRight = document.getElementById( idprefix + "Right" );
+		this.elUp = document.getElementById( idprefix + "Up" );
+		this.elDown = document.getElementById( idprefix + "Down" );
+		this.elShot = document.getElementById( idprefix + "Shot" );
+		this.elShield = document.getElementById( idprefix + "Shield" );
+
+		//! map of button names to the DOM elements
+		this.map =
+		{
+			pause:	this.elPause,
+			left:	this.elLeft,
+			right:	this.elRight,
+			forewd:	this.elUp,
+			backwd:	this.elDown,
+			fire:	this.elShot,
+			shield:	this.elShield
+		};
+
+		this.initial_sizes = {};
+		this.current_rects = {};
+
+		this.modes = ["off", "left", "right"];
+		this.active_mode = "off";
+
+		this.activate_mode = function( mode )
+		{
+			if (this.active_mode == mode)
+				return;
+
+			this.active_mode = mode;
+			this.update();
+		}
+
+		this.update = function()
+		{
+			if (this.active_mode == "off")
+			{
+				this.elPanel_Front.style.display = "none";
+				this.elPanel_Back.style.display = "none";
+				return;
+			}
+
+			this.elPanel_Front.style.display = "block";
+			this.elPanel_Back.style.display = "block";
+
+			if (!this.initial_sizes.pause)
+			{
+				for( var name in this.map )
+					this.initial_sizes[name] = kor.Vec.from_size( this.map[name] );
+			}
+
+			var rect = kor.Rect.deflate( kor.Rect.from_size( document.body.offsetWidth, document.body.offsetHeight ), 20 );
+
+			var dim = Math.min( kor.Rect.width(rect), kor.Rect.height(rect) ) * 0.28;
+			var f = dim / this.initial_sizes.forewd.x;
+
+			for( var name in this.map )
+				this.current_rects[name] = kor.Rect.from_size( kor.Vec.floor( kor.Vec.scale( this.initial_sizes[name], f ) ) );
+
+			// position cursor buttons
+			var rectCursors = kor.Rect.from_size(
+				kor.Rect.width(this.current_rects.forewd) + 2 * kor.Rect.width(this.current_rects.left) + 20,
+				kor.Rect.height(this.current_rects.left) + 2 * kor.Rect.height(this.current_rects.forewd) + 20
+			);
+			rectCursors = kor.Rect.dock_bottom( rectCursors, rect.bottom );
+			rectCursors = this.active_mode == "left" ?
+				kor.Rect.dock_left( rectCursors, rect.left ) :
+				kor.Rect.dock_right( rectCursors, rect.right );
+
+			this.current_rects.left = kor.Rect.floor( kor.Rect.dock_ycenter( kor.Rect.dock_left( this.current_rects.left, rectCursors.left ), kor.Rect.ycenter(rectCursors) ) );
+			this.current_rects.right = kor.Rect.floor( kor.Rect.dock_ycenter( kor.Rect.dock_right( this.current_rects.right, rectCursors.right ), kor.Rect.ycenter(rectCursors) ) );
+			this.current_rects.forewd = kor.Rect.floor( kor.Rect.dock_xcenter( kor.Rect.dock_top( this.current_rects.forewd, rectCursors.top ), kor.Rect.xcenter(rectCursors) ) );
+			this.current_rects.backwd = kor.Rect.floor( kor.Rect.dock_xcenter( kor.Rect.dock_bottom( this.current_rects.backwd, rectCursors.bottom ), kor.Rect.xcenter(rectCursors) ) );
+
+			// position shot & shield buttons
+			var rectShots = kor.Rect.from_size(
+				kor.Rect.width(this.current_rects.fire),
+				2.8 * kor.Rect.height(this.current_rects.fire)
+			);
+			rectShots = kor.Rect.dock_bottom( rectShots, rect.bottom );
+			rectShots = this.active_mode != "left" ?
+				kor.Rect.dock_left( rectShots, rect.left ) :
+				kor.Rect.dock_right( rectShots, rect.right );
+
+			this.current_rects.fire = kor.Rect.dock_left( kor.Rect.dock_top( this.current_rects.fire, rectShots.top ), rectShots.left );
+			this.current_rects.shield = kor.Rect.dock_left( kor.Rect.dock_bottom( this.current_rects.shield, rectShots.bottom ), rectShots.left );
+
+			// position pause button
+			this.current_rects.pause = kor.Rect.dock_top( this.current_rects.pause, rect.top );
+			this.current_rects.pause = this.active_mode != "left" ?
+				kor.Rect.dock_left( this.current_rects.pause, rect.left ) :
+				kor.Rect.dock_right( this.current_rects.pause, rect.right );
+
+			for( var name in this.map )
+			{
+				var el = this.map[name];
+				kor.Rect.set_width_height( this.current_rects[name], el.style );
+				kor.Rect.set_left_top( this.current_rects[name], el.style );
+			}
+		}
+
+		//! @param fnDown fnDown( name )
+		//! @param fnUp fnUp( name )
+		//! where name is the button name
+		this.set_callbacks = function( fnDown, fnUp )
+		{
+			for( var name in this.map )
+				if (name != "pause")
+				{
+					var el = this.map[name];
+					(function( nam ) {
+						el.onmousedown	= function() { fnDown( nam ); };
+						el.onmouseup	= function() { fnUp( nam ); };
+					})( name );
+				}
+		}
+
+		this.set_pause_callback = function( fn )
+		{
+			this.elPause.onmousedown = fn;
+		}
+	}
+</script>
+
+<style type="text/css">
+	.navigation_controls
+	{
+		position: absolute;
+		left: 0px;
+		top: 0px;
+		width: 0px;
+		height: 0px;
+		opacity: 0.25;
+		filter: alpha(opacity=25);
+	}
+
+	#navigation_controls_front { z-index: 11; }
+	#navigation_controls_back { z-index: 9; }
+
+	.navigation_controls img
+	{
+		position: absolute;
+		cursor: pointer;
+	}
+</style>
+
+<!-- the front controls are above the main menu when it is visible, the back ones are behind it. -->
+<div id="navigation_controls_front" class="navigation_controls" style="display: none">
+	<img id="navigationcontrol_Pause" src="images/button_pause.png" />
+</div>
+<div id="navigation_controls_back" class="navigation_controls" style="display: none">
+	<img id="navigationcontrol_Left" src="images/cursor_arrow_left.png" />
+	<img id="navigationcontrol_Right" src="images/cursor_arrow_right.png" />
+	<img id="navigationcontrol_Up" src="images/cursor_arrow_top.png" />
+	<img id="navigationcontrol_Down" src="images/cursor_arrow_bottom.png" />
+	<img id="navigationcontrol_Shot" src="images/button_shot.png" />
+	<img id="navigationcontrol_Shield" src="images/button_shield.png" />
+</div>
+
+
+
+<script type="text/javascript">
+/*
+==========================================
+
+	Highscores
+
+==========================================
+*/
+
+	var Highscores = function( max_length )
+	{
+		this.cookie = new kor.JCookie("Masterroids_Highscores");
+		this.max_length = (max_length || 30);
+
+		this.set_score = function( player_name, score )
+		{
+			var ar = (this.cookie.value || (this.cookie.value = []));
+			ar.push({ name: player_name, score: score });
+
+			ar.sort(function( a, b ) {
+				return b.score - a.score;
+			});
+
+			if (ar.length > this.max_length)
+				ar.length = this.max_length;
+
+			this.cookie.store();
+		}
+
+		this.get_list = function()
+		{
+			return (this.cookie.value || (this.cookie.value = []));
+		}
+
+		this.can_add_score = function( score )
+		{
+			if (!score)
+				return false;
+
+			var ar = (this.cookie.value || (this.cookie.value = []));
+			if (ar.length < this.max_length)
+				return true;
+
+			var min_score = ar[ar.length - 1].score;
+			return score > min_score;
+		}
+	}
+</script>
+
+
+
+<!--
+==========================================
+
+	HighscoresPanel
+
+==========================================
+-->
+<script type="text/javascript">
+	var HighscoresPanel = function( highScores )
+	{
+		this.id = "HighscoresPanel";
+		this.highScores = highScores;
+		this.elPanel = document.getElementById("highscores_panel");
+		this.elList = document.getElementById("highscores_panel_content");
+
+		function html_encode( s )
+		{
+			s = s.replace( "&", "&amp;" );
+			s = s.replace( "<", "&lt;" );
+			s = s.replace( ">", "&gt;" );
+			return s;
+		}
+
+		this.update = function( start_index, count )
+		{
+			if (!this.highScores)
+				return;
+
+			var list = this.highScores.get_list();
+			var spaces  = "                                                                                                                                           ";
+			var fillers = "...........................................................................................................................................";
+
+			if (start_index == null) start_index = 0;
+			if (count == null) count = list.length;
+
+			var s = "";
+			for( var i = 0 ; i < count ; ++i )
+			{
+				var index = i + start_index;
+				if (index < 0 || index >= this.highScores.max_length)
+					break;
+
+				var name = list[index].name;
+				var score = list[index].score.toString();
+
+				var line = (index + 1).toString() + ". ";
+				line = spaces.substr( 0, Math.max(4 - line.length, 0) ) + line;
+
+				line += name + " ";
+				line += fillers.substr( 0, Math.max(40 - name.length - score.length, 0) );
+				line += " " + score;
+
+				line = html_encode( line );
+				line = line.replace(" ", "&nbsp;");
+				s += "<p>" + line + "</p>";
+			}
+
+			this.elList.innerHTML = s;
+		}
+
+		this.show = function( bShow )
+		{
+			if (this.elPanel)
+				this.elPanel.style.display = bShow ? "block" : "none";
+		}
+
+		this.is_visible = function() { return this.elPanel.style.display !== "none"; }
+
+		this.update();
+	}
+</script>
+
+<style type="text/css">
+	#highscores_panel
+	{
+		text-align: center;
+		position: absolute;
+		left: 0px;
+		top: 10%;
+		width: 100%;
+		height: 80%;
+		z-index: 3;
+		overflow-y: hidden;
+	}
+	#highscores_panel td { text-align: center; white-space: nowrap; }
+	#highscores_panel_content
+	{
+		color: #bbb;
+		font: bold 16px Courier New;
+		text-align: center;
+		white-space: nowrap;
+	}
+</style>
+
+<div id="highscores_panel" style="display: none;">
+	<table width="100%" cellpadding='0' cellspacing='0' border='0'><tr><td width="100%">
+		<div id="highscores_panel_content">
+		</div>
+	</td></tr></table>
+</div>
+
+
+
+<!--
+==========================================
+
+	EnterNamePanel
+
+==========================================
+-->
+<script type="text/javascript">
+	var EnterNamePanel = function()
+	{
+		var that = this;
+
+		this.id = "EnterNamePanel";
+		this.elPanel = document.getElementById("enter_name");
+		this.elImageWrapper = document.getElementById("enter_name_image");
+		this.elPlayerNumber = document.getElementById("enter_name_player_number");
+		this.elPlayerScore = document.getElementById("enter_name_player_score");
+		this.elOkButton = document.getElementById("enter_name_ok");
+		this.elCancelButton = document.getElementById("enter_name_cancel");
+		this.elOkButton.onclick = function() { if (that.onOk) that.onOk(); };
+		this.elCancelButton.onclick = function() { if (that.onCancel) that.onCancel(); };
+		this.elField = document.getElementById("enter_name_field");
+
+		this.onOk = null;
+		this.onCancel = null;
+
+		this.init = function( player, player_index )
+		{
+			this.player = player;
+			this.player_index = player_index;
+			this.setImage( player.getShipFactory().create() );
+			this.elPlayerNumber.innerHTML = (this.player_index + 1).toString();
+			this.elPlayerScore.innerHTML = this.player.score.toString();
+			this.elField.value = "";
+		}
+
+		this.show = function( bShow )
+		{
+			if (this.elPanel)
+			{
+				this.elPanel.style.display = bShow ? "block" : "none";
+				if (bShow)
+					this.elField.focus();
+			}
+		}
+
+		this.is_visible = function() { return this.elPanel.style.display !== "none"; }
+
+		this.setImage = function( sprite )
+		{
+			if (this.elPanel)
+			{
+				// remove old image
+				this.elImageWrapper.innerHTML = "";
+			}
+
+			var imageCompositor = new kor.ImageCompositor(
+				function( resource, command, imageCompositor )
+				{
+					return sprite.get_image();		// we can ignore "resource" here, because we have only one anyway
+				}
+			);
+
+			var media = imageCompositor.compose({
+				op: "copyCanvasResizedKeepAspectRatio",
+				max_width: 80,
+				max_height: 26,
+				source: { op: "get", resource: "life" }
+			});
+
+			var elCanvas = media.getCanvas();
+			if (elCanvas)
+				this.elImageWrapper.appendChild( elCanvas );
+		}
+
+		this.get = function()
+		{
+			return {
+				name: this.elField.value,
+				score: this.player.score
+			};
+		}
+	}
+</script>
+
+<style type="text/css">
+	#enter_name
+	{
+		text-align: center;
+		position: absolute;
+		left: 0px;
+		top: 10%;
+		width: 100%;
+		z-index: 10;
+		opacity: 0.7;
+		filter: alpha(opacity=70);
+	}
+	#enter_name_content
+	{
+		padding: 10px 20px;
+		background-color: #224;
+		color: #bbb;
+		font: bold 16px Courier New;
+		text-align: left;
+		white-space: nowrap;
+	}
+	#enter_name_content > div { margin: 2px 0px; }
+	#enter_name_content .buttons { text-align: center; }
+	#enter_name_field
+	{
+		font: normal 16px Courier New;
+		width: 97%;
+	}
+	#enter_name_content .text { margin-top: 20px; }
+	#enter_name_content .button { margin-top: 8px; min-width: 70px; }
+</style>
+
+<div id="enter_name" style="display: none;">
+	<table width="100%" cellpadding='0' cellspacing='0' border='0'><tr><td width="50%"></td><td width="0%">
+		<div id="enter_name_content">
+			<div>Name for <span id="enter_name_image"></span> player <span id="enter_name_player_number"></span>,<br/>score: <span id="enter_name_player_score"></span></div>
+			<div><input type='text' maxlength='200' class='text' id='enter_name_field'></input></div>
+			<div class='buttons'>
+				<input type='button' value='OK' class='button' id="enter_name_ok"></input>
+				<input type='button' value='Cancel' class='button' id="enter_name_cancel"></input>
+			</div>
+		</div>
+	</td><td width="50%"></td></tr></table>
+</div>
+
+
+
+<script type="text/javascript">
+/*
+==========================================
+
+	The game's main object.
+
+	GameSession			the game's main object. It represents a gaming session.
+
+						It also contains the necessary members that the foGlobals parameter
+						of a kor.flying_object expects:
+						{flying_objects, flying_objects_count, collidable_objects, sprite_collection, sounds_on, getTime()}
+
+==========================================
+*/
+
+	var FlyingObjectModes = kor.FlyingObjectModes;
+	FlyingObjectModes.normal	= FlyingObjectModes.next_value++;
+	FlyingObjectModes.shielded	= FlyingObjectModes.next_value++;
+	FlyingObjectModes.hidden	= FlyingObjectModes.next_value++;
+
+	// additional values for kor.flying_object.priority
+	var FlyingObjectPriorities =
+	{
+		guard: 1,
+		protector: 2
+	}
+
+	var FlyingObjectKinds =
+	{
+		Player: 0,			//!< can be a player ship or any other object that the player is controlling
+		Shot: 1,			//!< this is only a player's shot or missile
+		Protect: 2,			//!< guard or protector
+		Comet: 3,
+		Mine: 4,
+		Extra: 5,
+		Danger: 6,
+		Flame: 7,
+		Enemy: 8,
+		Flare: 9,
+		Enemy_Shot: 10,
+		Shockwave: 11,
+		Graphic: 12			//!< just a graphical display object
+	}
+
+	var GameSession = function(
+						localPlayerSettings,
+						timer,
+						keyBoard,
+						navigationControls,
+						sceneryPainter,
+						spriteFactories,
+						soundFactory,
+						playerStatisticsPanels,
+						crazy_fun_mode
+					   )
+	{
+		var that = this;
+
+		this.localPlayerSettings = localPlayerSettings;
+		this.players = new GamePlayers;
+		this.players_count = 0;					//!< number of players for this game session (even if they have lost all their lifes)
+		this.timer = timer;
+		this.keyBoard = keyBoard;
+		this.navigationControls = navigationControls;
+		this.paused = false;
+		this.game_is_over = true;				//!< if true, the game is not explicitely paused, but it has finished which means no player plays anymore
+		this.new_level = false;				//!< if true, a new level is starting and the level number is being displayed. we are then waiting for the level-starting to finish which is just a delay (or syncing with remote players)
+		this.new_level_since = 0;				//!< and when the new level-start started
+		this.new_level_delay = 5000;			//!< delay to wait between 2 levels
+		this.sceneryPainter = sceneryPainter;
+		this.spriteFactories = spriteFactories;
+		this.soundFactory = soundFactory;
+		this.playerStatisticsPanels = playerStatisticsPanels;
+		this.simulate_players = false;
+		this.crazy_fun_mode = crazy_fun_mode;
+		this.player_flying_objects = [];		//!< the kor.flying_object per player index
+
+		this.on_game_over = null;				//!< callback function to be called when game ended (all players's lifes gone)
+
+		this.getTime = function() { return this.timer.time; }
+
+		// params global to all kor.flying_object's, especially the collection a flying_object belongs to. (as their foGlobals parameter)
+		this.index_pool = new kor.index_pool;
+		this.flying_objects = [];		// all flying_object's. but just the non-relative ones will be animated using frame_step().
+		this.flying_objects_count = 0;
+		this.collidable_objects = [];	// the flying_object's that need to know if they did collide with something. only those will be checked for collisions.
+		this.sprite_collection = null;	// the SceneryPainter's sprite collection to be maintained by flying_object's and drawn by the SceneryPainter.
+		this.sounds_on = theApp.sounds_on;		// if a flying_object may play a sound due to an action done or an event
+
+		this.game_level = 1;
+		this.team_mode = theApp.team_mode;		// if true, team mode is on, meaning that players cannot kill each other
+
+		//! A game timer is started at the beginning of a game.
+		//! Each array item is a timer object { enabled: ?, elapse_time: ?, timer_fct: ? }.
+		//! When called, the timer function gets { game_timer: ?, gameSession: ? }.
+		//! Notice, a game timer is not a running system timer. it is just an object with some informations.
+		//! The .frame method will just invoke the timer functions every frame step.
+		this.game_timers = [];
+
+		this.create_game_timer = function( fn, delay )
+		{
+			var tm = { enabled: false, elapse_time: (delay || 0), timer_fct: fn };
+			this.game_timers.push( tm );
+			return tm;
+		}
+
+		// caching sounds
+		this.snd_explosion = new kor.SoundLimiter( this.soundFactory.get("EXPLODE"), 2 );
+		this.snd_destroy = new kor.SoundLimiter( this.soundFactory.get("DESTROY"), 2 );
+		this.snd_shot = new kor.SoundLimiter( this.soundFactory.get("SHOT"), 2 );
+		this.snd_shield_on = new kor.SoundLimiter( this.soundFactory.get("SHLDON") );
+		this.snd_shield_off = new kor.SoundLimiter( this.soundFactory.get("SHLDOFF") );
+		this.snd_thrust = new kor.SoundLimiter( this.soundFactory.get("THRUST") );
+		this.snd_hit_shielded = new kor.SoundLimiter( this.soundFactory.get("SHIELD") );
+		this.snd_hit_guard = new kor.SoundLimiter( this.soundFactory.get("HITSTEEL") );
+		this.snd_die_guard = new kor.SoundLimiter( this.soundFactory.get("DIESHLDX") );
+		this.snd_warp_in = new kor.SoundLimiter( this.soundFactory.get("WARP"), 2 );
+		this.snd_new_extra = new kor.SoundLimiter( this.soundFactory.get("NEWEXTRA") );
+		this.snd_extra_disappear = new kor.SoundLimiter( this.soundFactory.get("DISAPPR") );
+		this.snd_take_extra = new kor.SoundLimiter( this.soundFactory.get("EXTRA") );
+		this.snd_take_guard = new kor.SoundLimiter( this.soundFactory.get("TAKESHLD") );
+		this.snd_take_protector = new kor.SoundLimiter( this.soundFactory.get("TAKEPRTC") );
+		this.snd_laser = new kor.SoundLimiter( this.soundFactory.get("LASER"), 2 );
+		this.snd_missile_explode = new kor.SoundLimiter( this.soundFactory.get("EXPLODE") );
+		this.snd_danger = new kor.SoundLimiter( this.soundFactory.get("DANGER") );
+		this.snd_enemy = new kor.SoundLimiter( this.soundFactory.get("ENEMY") );
+
+		this.shockwave_shake_amount = 0;	// current strength amount of the shockwave shake animation. 0 = off. this is solely the graphical shaking of the screen.
+
+		// helpers to get the shorter and longer display/surface size: WIDTH or HEIGHT
+		this.display_short = function() { return Math.min( this.sceneryPainter.surface.WIDTH, this.sceneryPainter.surface.HEIGHT ); }
+		this.display_long  = function() { return Math.max( this.sceneryPainter.surface.WIDTH, this.sceneryPainter.surface.HEIGHT ); }
+		this.display_mean_length = function() { return (this.sceneryPainter.surface.WIDTH + this.sceneryPainter.surface.HEIGHT) / 2; }
+
+		this.newLevelPanel = new NewLevelPanel;
+		this.newLevelPanel.show( false );
+		this.currentLevelPanel = new CurrentLevelPanel;
+		this.currentLevelPanel.show( false );
+		this.gameOverPanel = new GameOverPanel;
+		this.gameOverPanel.show( false );
+
+		// -- game session maintenance & level start --------------------------------------------------
+
+		//! stops the game and releases all resources it did allocate
+		/*!
+			We should make a proper cleanup even if afterwards the object is not referenced
+			anymore. That ensures to release possible cyclic dependencies in case of browser's Virtual Machine
+			is not capable to do that.
+		*/
+		this.dispose = function()
+		{
+			this.timer.stop_timer();
+			this.paused = false;
+			this.game_is_over = true;
+			this.new_level = false;
+			this.newLevelPanel.show( false );
+			this.currentLevelPanel.show( false );
+			this.gameOverPanel.show( false );
+			this.sceneryPainter.sprite_collection = null;
+
+			// release all old flying_object's
+			var rel = true;
+			while( rel )
+			{
+				rel = false;
+				for( var i = 0, l = this.flying_objects.length ; i < l ; ++i )
+					if( this.flying_objects[i] )
+					{
+						this.flying_objects[i].release();    // plus sets the item to null automatically
+						rel = true;
+						break;
+					}
+			}
+
+			//if( this.flying_objects_count !== 0 )
+			//	debugPanel.write( this.flying_objects_count.toString() + " flying objects leaking." );
+
+			this.flying_objects = [];
+			this.flying_objects_count = 0;
+			this.collidable_objects = [];
+			this.sprite_collection = null;
+
+			this.comets_count = 0;
+			this.enemies_count = 0;
+
+			this.players = new GamePlayers;
+			this.players_count = 0;
+			this.player_flying_objects = [];
+
+			for( var i in this.playerStatisticsPanels )
+				this.playerStatisticsPanels[i].hide();
+
+			this.game_timers = [];
+		}
+
+		//! @param players_count must be at maximum LocalPlayerDefs.max_players_count
+		//! @param simulate_players if true, players will not be directed by any input device but by computer. that's demo mode.
+		this.start_game = function( players_count, simulate_players )
+		{
+			this.players = new GamePlayers;
+			this.players_count = players_count;
+			this.simulate_players = simulate_players;
+			this.player_flying_objects = [];
+
+			this.paused = false;
+			this.game_is_over = false;
+			this.new_level = false;
+			this.newLevelPanel.show( false );
+			this.currentLevelPanel.show( false );
+			this.gameOverPanel.show( false );
+
+			this.flying_objects = [];
+			this.flying_objects_count = 0;
+			this.collidable_objects = [];
+			this.sprite_collection =
+			this.sceneryPainter.sprite_collection = new kor.SpriteCollection;
+
+			this.comets_count = 0;
+			this.enemies_count = 0;
+
+			this.game_level = 1;		// note: must be set before any player ships and comets are created, because they might need the game_level.
+
+			for( var i in this.playerStatisticsPanels )
+				this.playerStatisticsPanels[i].hide();
+
+			// the players and their ships
+			for( var i = 0 ; i < players_count ; ++i )
+			{
+				// player
+				var playerSettings = this.localPlayerSettings.getPlayerSettingsForPlayerIndex(i);
+				var keyInputs = new PlayerKeyboardInputs( playerSettings, this.keyBoard );
+				var player = new Player(
+					i == 0 ?
+						new PlayerInputs([keyInputs, new PlayerNavigationControlsInputs( this.navigationControls, this.timer )]) :
+						keyInputs,
+					function( pl ) { return function() { return that.spriteFactories.Ship_factories[pl]; }; } (i),
+					function( pl ) { return function() { return that.spriteFactories.Shield_factories[pl]; }; } (i)
+				);
+
+				this.players.addPlayer( player );
+
+				if( this.simulate_players )
+					player.makeComputerPlayer();
+
+				// player ship
+				var pos = this.player_start_pos_percent[players_count - 1][i];
+				var display_rect = this.sceneryPainter.surface.display_rect;
+				var foPlayer = this.create_Player_Ship(
+					player.ship_factory,
+					player.shield_factory,
+					pos.x * (display_rect.right - display_rect.left) + display_rect.left,
+					pos.y * (display_rect.bottom - display_rect.top) + display_rect.top,
+					player
+				);
+
+				this.player_flying_objects[i] = foPlayer;
+
+				/*
+				this.create_Guard( foPlayer );
+				this.create_Protector( foPlayer );
+				*/
+
+				// player statistics panel
+				var plPanel = this.playerStatisticsPanels[i];
+				plPanel.init( player );
+				plPanel.show();
+			}
+
+			this.game_timers = [];
+
+			this.players.reset_keys();
+			this.keyBoard.reset_keys();
+			this.timer.start_timer();
+
+			this.initEnemyAppearTimer( this.create_game_timer() );
+
+			this.level_start();		// the timer must have been (re)started already because we need a correct time value (restarting will reset it back to 0)
+		}
+
+		//! @remarks The game_level must have been set to the right value already.
+		this.level_start = function()
+		{
+			this.new_level = true;
+			this.new_level_since = this.timer.time;
+			this.newLevelPanel.setContent( "Level " + this.game_level );
+			this.newLevelPanel.show( true );
+			this.currentLevelPanel.show( false );
+		}
+
+		//! The timer for displaying the next level number elapsed. We hide the number display and create the comets. The Akschn starts!
+		this.level_start_finished = function()
+		{
+			this.currentLevelPanel.setContent( "Level " + this.game_level );
+			this.currentLevelPanel.show( true );
+			this.newLevelPanel.show( false );
+			this.new_level = false;
+			this.next_comet_index = 0;
+
+			var num_comets = this.level_num_comets();    // number of initial comets at level start
+			for( var i = 0 ; i < num_comets ; ++i )
+				this.create_Comet( 0 );
+
+			// Mines
+			// Let's create just a few ones at level start. Not too many, otherwise they explode in a chain and clear all the big and medium sized comets immediately.
+			if( this.game_level >= this.mine_start_level() )
+			{
+				var num_mines = (this.crazy_fun_mode ? 1 : 0) + (this.game_level - this.mine_start_level()) * 0.15;
+				if( !this.crazy_fun_mode )
+				{
+					if( num_mines > 1 )
+						num_mines = 1;
+				}
+
+				for( var i = 0 ; i < num_mines ; ++i )
+					this.create_Mine();
+			}
+
+			if( this.game_level === this.mine_start_level() )
+				this.initMineAppearTimer( this.create_game_timer() );
+
+			// Extras
+			var total_comets_count = num_comets * 7;		// number of comets that will be in the game: 7 because 1 big, 2 medium, 4 small ones
+			this.predefined_cometted_popups_creations.list = [];
+			if( this.game_level >= this.green_extras_start_level() )
+				this.predefined_cometted_popups_creations.add_multiple(function( x, y )
+					{
+						that.create_Extra( that.spriteFactories.Green_Extra_factory, x, y, true, that.on_extra_Protector_taken, that.snd_take_protector );
+					},
+					this.green_extras_count_in_level(),
+					total_comets_count
+				);
+			if( this.game_level >= this.blue_extras_start_level() )
+				this.predefined_cometted_popups_creations.add_multiple(function( x, y )
+					{
+						that.create_Extra( that.spriteFactories.Blue_Extra_factory, x, y, true, that.on_extra_Guard_taken, that.snd_take_guard );
+					},
+					this.blue_extras_count_in_level(),
+					total_comets_count
+				);
+			if( this.game_level >= this.red_extras_start_level() )
+				this.predefined_cometted_popups_creations.add_multiple(function( x, y )
+					{
+						that.create_Extra( that.spriteFactories.Red_Extra_factory, x, y, true, that.on_extra_Weaponry_taken, that.snd_take_extra );
+					},
+					this.red_extras_count_in_level(),
+					total_comets_count
+				);
+			if( this.game_level >= this.dangers_start_level() )
+				this.predefined_cometted_popups_creations.add_multiple(function( x, y )
+					{
+						that.create_Danger( x, y, true );
+					},
+					this.dangers_count_in_level(),
+					total_comets_count
+				);
+		}
+
+		//! Last comet died, so the level is finished. We go on to the next level.
+		this.level_finished = function()
+		{
+			++this.game_level;
+			this.level_start();
+		}
+
+		this.game_over = function()
+		{
+			this.game_is_over = true;
+			this.gameOverPanel.show( true );
+			//this.currentLevelPanel.show( false );		// we want to see the level when we died
+
+			this.game_timers = [];
+
+			if (this.on_game_over)
+				this.on_game_over();
+		}
+
+		//! Call this to process next frame calculations of the game session
+		this.frame = function()
+		{
+			if( this.new_level )
+			{
+				if( this.timer.time > this.new_level_since + this.new_level_delay )
+					this.level_start_finished();
+			}
+
+			this.players.pullInputs();
+
+			kor.detect_collisions( this );
+
+			// move/actuate the flying_objects, but only the non-relative ones.
+			// Relative ones will be animated by their relative_to objects.
+			for( var i = 0, l = this.flying_objects.length ; i < l ; ++i )
+			{
+				var fly = this.flying_objects[i];
+				if( fly )
+					fly.frame_step( this.timer.time );
+			}
+
+			for( var i = 0, l = this.game_timers.length ; i < l ; ++i )
+			{
+				var tm = this.game_timers[i];
+				if( tm.enabled && this.timer.time >= tm.elapse_time )
+				{
+					tm.enabled = false;
+					tm.timer_fct({ game_timer: tm, gameSession: this });
+				}
+			}
+
+			// do the shockwave shaking, if we have one active right now
+			if( this.shockwave_shake_amount > 0 )
+			{
+				this.sceneryPainter.background_offset = { x: (Math.random() - 0.5) * this.shockwave_shake_amount, y: (Math.random() - 0.5) * this.shockwave_shake_amount };
+				this.sceneryPainter.sprites_offset    = { x: (Math.random() - 0.5) * this.shockwave_shake_amount, y: (Math.random() - 0.5) * this.shockwave_shake_amount };
+				this.sceneryPainter.rotation_angle    = (Math.random() - 0.5) * this.shockwave_shake_amount * kor.Vec.degreeToRadian * 0.1;
+				this.sceneryPainter.background_angle_center = { x: Math.random() * this.sceneryPainter.surface.WIDTH, y: Math.random() * this.sceneryPainter.surface.HEIGHT };
+				this.sceneryPainter.sprites_angle_center    = { x: Math.random() * this.sceneryPainter.surface.WIDTH, y: Math.random() * this.sceneryPainter.surface.HEIGHT };
+
+				var shock_decrease = 0.025 * this.timer.delta_t;
+				this.shockwave_shake_amount -= shock_decrease;
+
+				if( this.shockwave_shake_amount < 0.05 )
+				{
+					this.shockwave_shake_amount = 0;
+					this.sceneryPainter.background_offset       = { x: 0, y: 0 };
+					this.sceneryPainter.sprites_offset          = { x: 0, y: 0 };
+					this.sceneryPainter.rotation_angle          = 0;
+					this.sceneryPainter.background_angle_center = { x: 0, y: 0 };
+					this.sceneryPainter.sprites_angle_center    = { x: 0, y: 0 };
+				}
+			}
+
+			for( var i = 0 ; i < this.players_count ; ++i )
+				this.playerStatisticsPanels[i].update();
+
+			this.players.reset_keys();
+		}
+
+		this.pause = function()
+		{
+			if( this.game_is_over )
+				return;
+
+			if( this.paused )
+				return;
+
+			this.timer.stop_timer();
+			this.paused = true;
+		}
+
+		this.continue = function()
+		{
+			if( !this.paused )
+				return;
+
+			this.timer.start_timer( true );
+			this.paused = false;
+		}
+
+		// -- flying_object creation -------------------------------------------------------------------
+
+		// first parameters/constants for level start
+
+		this.level_num_comets = function() { return 4 + Math.round( (this.game_level - 1) * 0.2 + (this.players_count - 1) ); };	// number of initial comets at level start
+		this.green_extras_start_level = function() { return this.crazy_fun_mode ? 1 : 8; };
+		this.green_extras_count_in_level = function() { return this.crazy_fun_mode ? 10 * this.players_count : this.players_count; };
+		this.blue_extras_start_level = function() { return this.crazy_fun_mode ? 1 : 4; };
+		this.blue_extras_count_in_level = function() { return this.crazy_fun_mode ? 10 * this.players_count : this.players_count; };
+		this.red_extras_start_level = function() { return this.crazy_fun_mode ? 1 : 2; };
+		this.red_extras_count_in_level = function()
+		{
+			return this.crazy_fun_mode ?
+				10 * this.players_count :
+				this.players_count * Math.floor( Math.min( (this.game_level - 2) * 0.5 + 1, 2 ) );
+		};
+		this.dangers_start_level = function() { return this.crazy_fun_mode ? 1 : 2; };
+		this.dangers_count_in_level = function()
+		{
+			return this.crazy_fun_mode ?
+				30 * this.players_count :
+				2 * Math.random() + this.players_count + Math.floor( Math.min( this.game_level * 0.4, 20 ) );
+		};
+
+		// now many animation parameters/constants. notice, there are still a few further parameter values which are
+		// hardcoded in the animation functions
+
+		this.comet_max_speed_in_level = function() { return 0.05 + this.game_level * /*0.012*/ 0.004; };
+			// 0.05 feels quite comfy
+			// 0.1 is still experienced dealable, but a little stress comes up
+			// 0.2 is experienced fast and really stressy
+			// 0.3 is pure hectic
+		// Note: The animation params for a player ship are hardcoded in \c move_player() and related.
+		this.ship_near_object_detect_distance_scale = 0.7;	// how far to detect near objects to aim guards/protectors on. multiples of shorter display length
+		this.explosion_speed = 0.0017;
+		this.warp_in_speed = 0.0006;			// 0.0006 fits for the length of the warp-in sound.
+		this.time_for_next_computer_shot = function() { return this.timer.time + 200 * Math.random() + 100; }
+		this.computer_player_fly_min_distance_sqr = function() { var d = 0.1 * this.display_mean_length(); return d * d; }
+		this.computer_player_shield_distance_sqr = function( FO, fo2 )
+		{
+			var collrad1 = FO.active_sprite ? FO.active_sprite.collision_radius : 0;
+			var collrad2 = fo2.active_sprite ? fo2.active_sprite.collision_radius : 0;
+			var d = collrad1 + collrad2 + 20;
+			return d * d;
+		}
+		this.computer_player_shielding_mine_distance_sqr = function( bPlayerBeingAwareOfShockwave ) { var d = (bPlayerBeingAwareOfShockwave ? 0.8 : 0.25) * this.shockwave_final_distance(); return d * d; }
+		this.computer_player_shield_remain_on_delay = 100; //700;	// how many millisec the computer player should keep the shield on after (he thinks) he would not need it on anymore
+		this.computer_player_turn_to_correct_aiming_delay = 500;	// in small angles we prohibit the computer to turn a bit more to aim more correctly, because this would result in a trembling left & right of the ship. but to be able to make a better aiming, we do allow correcting with some delay between 2 corrections.
+		this.computer_player_turn_to_correct_aiming_min_angle = 5 * kor.Vec.degreeToRadian;		// but these corrections we still do only if the angle to the target is bigger than this minimum angle
+		this.computer_player_react_on_any_shockwave_distance_sqr = function() { var d = this.shockwave_final_distance() * 0.95; return d * d; }
+		this.computer_player_shockwave_reaction_delay = 100;	// delay [ms] when the player can activate the shield when a mine started exploding, simulating a human-like reaction delay
+		this.mine_start_level = function() { return this.crazy_fun_mode ? 1 : 2; }
+		this.mine_appear_delay = function() { return 15000 * Math.random() + 20000; }	// time delay when the next mine should appear
+		this.mine_max_speed_in_level = function() { return 0.03 + this.game_level * /*0.006*/ 0.001; };
+		this.mine_shockwave_shake_strength = 20;	// shockwave shake strength start in pixels when *one* mine explodes
+		this.shockwave_final_distance = function() { return 0.7 * this.display_short(); }	// final (max) distance in which a shockwave also takes all other objects with it into nirvana
+		this.shockwave_duration = 700;			// how many millisec it takes for a shockwave to reach shockwave_final_distance.
+		this.shockwave_shake_max = 3 * this.mine_shockwave_shake_strength;	// max strength of shockwave shake animation when many mines explode at the same time
+		this.shockwave_ring_alpha = 0.3;
+		this.shockwave_max_ship_bump_strength = 0.8;
+		this.extra_anim_speed = 0.0007;
+		this.extra_stay_delay = 10 * 1000;		// how long (in millisec) an extra shall exist before it disappears
+		this.extra_slow_down = 0.006;
+		this.extra_initial_speed = 0.05;
+		this.missile_near_object_detect_distance_scale = 0.7;	// how far to detect near objects to aim on. multiples of shorter display length
+		this.missile_rot_speed = 0.007;
+		this.missile_max_speed = 0.75;
+		this.missile_max_lifetime = 3000;
+		this.missile_fly_delay = 170;			// delay in millisec when the missile should start flying after it has been launched.
+		this.missile_slow_down = 0.15;
+		this.missile_acceleration = 0.07;
+		this.missile_side_velocity = 0.1;		// at the beginning of a missile, it flies left or right away from the ship.
+		this.missile_launch_delay = 750;		// delay in millisec between 2 missile launches (of one taken missile extra)
+		this.danger_anim_speed = 0.0006;
+		this.danger_slow_down = 0.02;
+		this.danger_speed_max = { initial: 0.2,  rot: 0.005, max: 0.3, acceleration: 0.01 };
+		this.danger_speed_min = { initial: 0.12, rot: 0.002, max: 0.2, acceleration: 0.003 };
+		this.danger_detect_distance_scale = 1;		// distance factor for shorter display length in which a danger can detect a player ship to target on.
+		this.enemy_detect_distance_scale = 0.75;	// distance factor for longer display length in which an enemy can detect a player ship to target on.
+		this.enemy_rot_speed = 0.002;
+		this.enemy_rot_speed_no_target = 0.001;	// rotation speed when the enemy has no target
+		this.enemy_slow_down = 0.0015;
+		this.enemy_acceleration = 0.001;
+		this.enemy_acceleration_no_target = 0.00007;	// acceleration when the enemy has no target
+		this.enemy_max_speed = 0.13;
+		this.enemy_start_speed = this.enemy_max_speed * 0.2;
+		this.enemy_start_level = 3;
+		this.enemy_appear_delay = function() { return 10000 * Math.random() + 15000; }	// time delay when the next enemy should appear
+		this.time_for_next_enemy_shot = function() { return this.timer.time + 500 * Math.random() + 200 + 100 * Math.max( 30 - this.game_level, 0 ); }
+		this.time_for_next_enemy_orientation_change = function() { return this.timer.time + 5000 * Math.random() + 5000; }
+		this.max_enemies_present = 20;
+		this.missile_smoke_trail_step_sqr = 10 * 10;	// square of pixel distance between 2 smoke clouds
+		this.missile_smoke_trail_max_rotation = 0.009;
+		if( this.crazy_fun_mode )
+		{
+			this.mine_appear_delay = function() { return 5000 * Math.random() + 4000; }
+			this.missile_launch_delay = 0;
+			this.enemy_start_level = 1;
+			this.enemy_appear_delay = function() { return 3000 * Math.random() + 2000; }
+			this.time_for_next_enemy_shot = function() { return this.timer.time + 500 * Math.random() + 100; }
+		}
+
+		this.comets_count = 0;					//!< current number of comets flying around
+		this.comet_score_value = [20, 30, 50];
+		this.next_comet_index = 0;				//!< index of the next comet in the current level
+
+		this.enemies_count = 0;					//!< current number of enemies flying around
+
+		//! outer index = players count - 1, inner index = player index
+		this.player_start_pos_percent = [
+			[{x: 0.5, y: 0.5}],
+			[{x: 0.3, y: 0.5}, {x: 0.7, y: 0.5}],
+			[{x: 0.3, y: 0.3}, {x: 0.7, y: 0.3}, {x: 0.5, y: 0.7}],
+			[{x: 0.25, y: 0.3}, {x: 0.75, y: 0.3}, {x: 0.37, y: 0.7}, {x: 0.63, y: 0.7}]
+		];
+
+		//! Contains the predefined points in time if and which new extra(s), danger(s) etc. to create when a comet explodes.
+		//! This is only based on the comets in the current level. Extras appearing from destroying any other objects is independent from this here.
+		/*!
+			Items:
+			Each item of the array is itself an array of functions, each one to create one extra or danger when a comet is destroyed.
+			The outer indices are counted as the explosions of comets in the current level.
+		*/
+		this.predefined_cometted_popups_creations =
+		{
+			list: [],
+
+			add: function( fn, index )
+			{
+				if( this.list[index] )
+					this.list[index].push( fn );
+				else
+					this.list[index] = [fn];
+			},
+
+			add_multiple: function( fn, count, total_comets_count )
+			{
+				for( var i = 0 ; i < count ; ++i )
+					this.add(
+						fn,
+						Math.round( (total_comets_count - 1) * Math.random() )
+					);
+			}
+		};
+
+		this.create_Comet = function( size_index, x, y, popped_up_from_explosion )
+		{
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Comet );
+			++this.comets_count;
+			FO.comet_index = this.next_comet_index++;    //!< index of this comet in the current level
+			FO.size_index = size_index;
+			FO.popped_up_from_explosion = popped_up_from_explosion;
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Comet_sprite_factories.get_factory( this.game_level, size_index ), this.act_just_fly ) );
+			FO.set_sprite( FlyingObjectModes.explosion, new kor.flying_object_mode( this.spriteFactories.Explosion_factories[size_index], this.act_explode, false, this.snd_explosion ) );
+			FO.set_active_sprite( FlyingObjectModes.normal );
+
+			var orientation;
+			if( size_index === 0 )
+			{
+				var POR = kor.Vec.rect_border_pos_orientation_range( this.sceneryPainter.surface.display_rect, Math.random() );
+				FO.pos = POR.pos;
+				orientation = POR.pick_orientation( Math.random() );
+			}
+			else
+			{
+				FO.pos.x = x;
+				FO.pos.y = y;
+				orientation = Math.random() * kor.Vec.twoPI;
+			}
+
+			// calculate speed for comet
+			// in this.comet_max_speed_in_level():
+			//	0.05 feels quite comfy
+			//	0.1 is still experienced dealable, but a little stress comes up
+			//	0.2 is experienced fast and really stressy
+			//	0.3 is pure hectic
+			// speed increases the smaller a comet is. and it increases in general per game_level
+			var max_speed = this.comet_max_speed_in_level();
+			max_speed *= size_index * 0.2 + 1;
+			if( max_speed > 0.4 ) max_speed = 0.4;
+			var min_speed = max_speed * 0.5;
+			var speed = (max_speed - min_speed) * Math.random() + min_speed;
+
+			FO.a_v_velocity = kor.Vec.from_orientation( orientation, speed );
+			FO.a_start_time = this.timer.time;
+			FO.calc_absolute();
+
+			FO.on_exploding = function()		// notice, when called, 'this' is the FO object
+			{
+				if( this.size_index < 2 )
+				{
+					that.create_Comet( this.size_index + 1, this.pos.x, this.pos.y, true );
+					that.create_Comet( this.size_index + 1, this.pos.x, this.pos.y, true );
+				}
+
+				if( --that.comets_count === 0 )
+					that.level_finished();
+
+				// Check if to create popups for this comet explosion.
+				var create_popup_fcts = that.predefined_cometted_popups_creations.list[this.comet_index];
+				for( var i in create_popup_fcts )
+					create_popup_fcts[i]( this.pos.x, this.pos.y );
+			}
+
+			FO.score_on_destroy = this.comet_score_value[size_index];
+			return FO;
+		}
+
+		//! Creates a player ship.
+		/*!
+			@param ship_factory
+			The sprite factory where to take the ship images from, or a function returning the sprite factory.
+		*/
+		this.create_Player_Ship = function( ship_factory, shield_factory, x, y, player )
+		{
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Player, false );		// since first we start warp-in, we are non-collidable.
+			FO.player = player;
+			FO.children = new kor.ordered_dictionary();	// a player ship can have child objects attached (guards, protectors etc.)
+			//FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( ship_factory, this.act_player_ship, true, null, null, true ) );	// set invulnerability for normal mode just for testing
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( ship_factory, this.act_player_ship, true ) );
+			FO.set_sprite( FlyingObjectModes.shielded, new kor.flying_object_mode( shield_factory, this.act_player_shielded, true, this.snd_shield_on, this.snd_shield_off, true ) );
+			// Remark out the adding of k_mode_explosion sprites. That way, the ship cannot explode and the player has an indestructible life cheat.
+			FO.set_sprite( FlyingObjectModes.explosion, new kor.flying_object_mode( this.spriteFactories.Explosion_A_factory, this.act_explode_player_ship, false, this.snd_destroy ) );
+			FO.set_active_sprite( FlyingObjectModes.normal );
+			FO.pos.x = x;
+			FO.pos.y = y;
+			FO.reappear_time = 0;	// will be set when the ship exploded, but it shall reappear after some time.
+			FO.scale = 0;			// warping in from scale 0. But the position we put outside the screen for now.
+			FO.warping_in = true;
+			FO.skip_collisions = true;		// skipping collisions as long as the ship is warping-in
+			if( this.snd_warp_in && this.sounds_on )
+				this.snd_warp_in.play();
+			FO.player_inputs = player.Inputs;
+			FO.near_objects = [];	// we want to get near_objects for the player
+			FO.near_distance_sqr = function() { var d = that.display_long(); return d * d; };
+			if( this.simulate_players )
+				FO.want_more_near_objects = [SpriteKinds.extra];	// a computer simulated player we want to be able to hunt extras
+			FO.calc_absolute();
+			FO.on_releasing = function()
+			{
+			}
+			FO.protectors_count = 0;	// how many protectors the ship has. Used to recreate the protectors after the ship exploded. Also used to check for max count of protectors that can be taken.
+			FO.guards_count = 0;		// how many guards the ship has. Used to check for max count of guards that can be taken.
+			FO.weaponry_taken_count = 0;
+			FO.spread_shot = false;	// true if a spread shot extra had been picked up. then the ship shoots in multiple directions at once.
+			FO.laser_shot = false;		// true if a laser extra had been picked up. then the shot is a laser.
+			FO.missiles_count = 0;		// how many missiles being launched on one shot
+			FO.missiles_next_shot = [];	// and for each of the missiles, when the next one may be shot
+			FO.b_start_missile_left = true;	// if the next missile shall be started left (true) or right (false) of the ship
+			FO.on_exploding = function()		// notice, when called, 'this' is the FO object
+			{
+				// We create the extras that we loose.
+				for( var i = 0 ; i < this.weaponry_taken_count ; ++i )
+					that.create_Extra( that.spriteFactories.Red_Extra_factory, this.absolute_pos.x, this.absolute_pos.y, true, that.on_extra_Weaponry_taken, that.snd_take_extra );
+
+				for( var i = 0 ; i < this.guards_count ; ++i )
+					that.create_Extra( that.spriteFactories.Blue_Extra_factory, this.absolute_pos.x, this.absolute_pos.y, true, that.on_extra_Guard_taken, that.snd_take_guard );
+
+				// We reset taken extras.
+				this.weaponry_taken_count = 0;
+				this.spread_shot = false;
+				this.laser_shot = false;
+				this.missiles_count = 0;
+				this.missiles_next_shot = [];
+				this.activate_flame( false );
+			}
+			FO.next_life = function()
+			{
+				this.guards_count = 0;
+
+				// recreate any previous protectors
+				var old_protectors_count = this.protectors_count;
+				this.protectors_count = 0;
+				for( ; old_protectors_count > 0 ; --old_protectors_count )
+					that.create_Protector( this );
+			}
+			FO.score_on_destroy = 100;
+			FO.increase_score = function( n )
+			{
+				if( n )
+					this.player.score += n;
+			}
+			FO.time_for_next_shot = 0;		// this we need only for a simulated player (computer player)
+
+			FO.FO_flame = new kor.flying_object( this, FlyingObjectKinds.Flame, false );
+			FO.FO_flame.active_flame_set_index = 0;		// this is *not* integer, it is float to adjust speed of flickering
+			FO.FO_flame.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Flame_factories[FO.FO_flame.active_flame_set_index], this.act_flame, true ) );
+			FO.FO_flame.pos = { x: 0, y: 0 };
+			FO.FO_flame.make_relative_to( FO );
+			FO.FO_flame.calc_absolute_for_rel();
+			FO.FO_flame.skip_collisions = true;
+			FO.activate_flame = function( bActivate )
+			{
+				var bIsActive = this.FO_flame.active_mode !== FlyingObjectModes.off;
+				if( bActivate && !bIsActive )
+				{
+					this.FO_flame.calc_absolute_for_rel();
+					this.FO_flame.set_active_sprite( FlyingObjectModes.normal );		// needs calculated absolute coords
+				}
+				else
+				if( !bActivate && bIsActive )
+				{
+					this.FO_flame.disable();
+				}
+			}
+			return FO;
+		}
+
+		//! we create a shot relative to the ship and detach it immediately from it.
+		this.create_Shot1 = function( parent_Ship, orientation )
+		{
+			// we play the shot sound only if it is a center shot, so not a spread shot
+			if( this.snd_shot && this.sounds_on && orientation === 0 )
+				this.snd_shot.play();
+
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Shot, true );
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Shot1_factory, this.act_shot ) );
+			FO.set_active_sprite( FlyingObjectModes.normal );
+			FO.pos.x = 0;
+			FO.pos.y = -26;
+			FO.orientation = (orientation + kor.Vec.huge_2PI) % kor.Vec.twoPI;
+			FO.calc_absolute_as_if_relative( parent_Ship );
+			FO.a_origin_object = parent_Ship;
+			FO.a_v_velocity = kor.Vec.from_orientation( FO.orientation, 0.7 );
+			if( parent_Ship.a_v_velocity )
+				FO.a_v_velocity = kor.Vec.add( FO.a_v_velocity, parent_Ship.a_v_velocity );
+			FO.a_start_time = this.timer.time;
+			FO.a_end_time = this.timer.time + 0.56 * this.display_short();
+			FO.calc_absolute();
+			FO.score_on_avoided = 250;
+			return FO;
+		}
+
+		//! we create a shot relative to the ship and detach it immediately from it.
+		this.create_Shot2 = function( parent_Ship, orientation )
+		{
+			// we play the shot sound only if it is a center shot, so not a spread shot
+			if( this.snd_shot && this.sounds_on && orientation === 0 )
+				this.snd_shot.play();
+
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Shot, true );
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Shot2_factory, this.act_shot ) );
+			FO.set_active_sprite( FlyingObjectModes.normal );
+			FO.pos.x = 0;
+			FO.pos.y = -26;
+			FO.orientation = (orientation + kor.Vec.huge_2PI) % kor.Vec.twoPI;
+			FO.calc_absolute_as_if_relative( parent_Ship );
+			FO.a_origin_object = parent_Ship;
+			FO.a_v_velocity = kor.Vec.from_orientation( FO.orientation, 0.73 );
+			if( parent_Ship.a_v_velocity )
+				FO.a_v_velocity = kor.Vec.add( FO.a_v_velocity, parent_Ship.a_v_velocity );
+			FO.a_start_time = this.timer.time;
+			FO.a_end_time = this.timer.time + 0.6 * this.display_short();
+			FO.calc_absolute();
+			FO.score_on_avoided = 300;
+			return FO;
+		}
+
+		//! we create a laser shot relative to the ship and detach it immediately from it.
+		this.create_Laser = function( parent_Ship )
+		{
+			if( this.snd_laser && this.sounds_on )
+				this.snd_laser.play();
+
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Shot, true );
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Laser_factory, this.act_shot, true ) );
+			FO.set_active_sprite( FlyingObjectModes.normal );
+			FO.pos.x = 0;
+			FO.pos.y = -27;
+			FO.calc_absolute_as_if_relative( parent_Ship );
+			FO.a_origin_object = parent_Ship;
+			FO.a_v_velocity = kor.Vec.from_orientation( FO.orientation, 0.9 );
+			if( parent_Ship.a_v_velocity )
+				FO.a_v_velocity = kor.Vec.add( FO.a_v_velocity, parent_Ship.a_v_velocity );
+			FO.a_start_time = this.timer.time;
+			FO.a_end_time = this.timer.time + 0.7 * this.display_short();
+			FO.calc_absolute();
+			FO.score_on_avoided = 350;
+			return FO;
+		}
+
+		//! we create a missile relative to the ship and detach it immediately from it.
+		this.create_Missile = function( parent_Ship )
+		{
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Shot, true );
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Missile_factory, this.act_missile, true ) );
+			FO.set_sprite( FlyingObjectModes.explosion, new kor.flying_object_mode( this.spriteFactories.Explosion_C_factory, this.act_explode, false, this.snd_missile_explode ) );
+			FO.set_active_sprite( FlyingObjectModes.normal );
+			FO.pos.x = parent_Ship.b_start_missile_left ? -22 : 22;
+			FO.pos.y = 10;
+			FO.calc_absolute_as_if_relative( parent_Ship );
+			FO.a_origin_object = parent_Ship;
+			FO.a_v_velocity = kor.Vec.from_orientation(
+				FO.absolute_orientation + (parent_Ship.b_start_missile_left ? kor.Vec.halfPI : -kor.Vec.halfPI),
+				this.missile_side_velocity
+			);
+			if( parent_Ship.a_v_velocity )
+				FO.a_v_velocity = kor.Vec.add( FO.a_v_velocity, parent_Ship.a_v_velocity );
+			FO.near_objects = [];   // we want to get near_objects to aim the missile onto the nearest one
+			FO.near_distance_sqr = function() { var d = that.missile_near_object_detect_distance_scale * that.display_mean_length(); return d * d; };
+			FO.a_start_time = this.timer.time;
+			FO.a_end_time = this.timer.time + this.missile_max_lifetime;
+			FO.a_start_fly_time = this.timer.time + this.missile_fly_delay;		// the time when the missile should start flying. before this time, but after having been launched, the missile just glides to the side of the player ship. That gives a cute effect.
+			FO.find_target_mode = true;	// indicates that the missile is looking for a target to aim on (but not before the a_start_fly_time)
+			FO.calc_absolute();
+			FO.score_on_destroy = 100;
+			parent_Ship.b_start_missile_left = !parent_Ship.b_start_missile_left;
+			return FO;
+		}
+
+		this.create_Smoke = function( sprite_factory, x, y, rotation, opacity, fade_out, scale, scale_up )
+		{
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Graphic, false );
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( sprite_factory, this.act_smoke, true ) );
+			FO.set_active_sprite( FlyingObjectModes.normal );
+			FO.pos.x = x;
+			FO.pos.y = y;
+			FO.opacity = (opacity || 0.31);		// being faded out
+			FO.fade_out = (fade_out || 0.0003);	// fade out subtract value per millisecond
+			FO.scale = (scale || 0.5);
+			FO.scale_up = (scale_up || 0.0008);	// increasing scale per millisecond
+			FO.rotation = (rotation || 0);			// rotation per millisecond
+			FO.calc_absolute();
+			FO.active_sprite.globalAlpha = FO.opacity;
+			FO.skip_collisions = true;
+			FO.explode = function() {  };			// we cannot explode anyway
+			return FO;
+		}
+
+		this.create_Guard = function( parent_Ship )
+		{
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Protect, true );
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Guard_factory, this.act_protect ) );
+			FO.set_active_sprite( FlyingObjectModes.normal );
+			FO.priority = FlyingObjectPriorities.guard;
+			FO.pos.x = 0;
+			FO.pos.y = -40;
+			FO.apply_parent_orientation = false;
+			FO.make_relative_to( parent_Ship );
+			++parent_Ship.guards_count;
+			FO.radius = 40;
+			FO.search_rot_speed = 0.008;		// rotation speed when the guard moves towards a dangerous object.
+			FO.idle_rot_speed = 0.002 * (Math.random() + 0.2) * (Math.random() - Math.random() > 0 ? 1 : -1);	// rotation speed when the guard has nothing to aim on
+			FO.survive_hit_count = 9;			// number of lifes of the guard = survive_hit_count + 1
+			FO.calc_absolute();
+			FO.a_origin_object = parent_Ship;	// used by the Mine to know for which object to increase score when all near objects are exploded
+			FO.on_releasing = function()
+			{
+				if( this.relative_to )
+					--this.relative_to.guards_count;
+			}
+			return FO;
+		}
+
+		this.create_Protector = function( parent_Ship )
+		{
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Protect, true );
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Protector_factory, this.act_protect ) );
+			FO.set_active_sprite( FlyingObjectModes.normal );
+			FO.priority = FlyingObjectPriorities.protector;
+			FO.pos.x = 0;
+			FO.pos.y = -40;
+			FO.apply_parent_orientation = false;
+			FO.make_relative_to( parent_Ship );
+			++parent_Ship.protectors_count;
+			FO.radius = 50;
+			FO.search_rot_speed = 0.014;		// rotation speed when the protector moves towards a dangerous object.
+			FO.idle_rot_speed = (0.002 + 0.001 * (Math.random() + 0.2)) * (Math.random() - Math.random() > 0 ? 1 : -1);	// rotation speed when the rotator has nothing to aim on
+			FO.survive_hit_count = -1;			// -1 = live forever
+			FO.calc_absolute();
+			FO.a_origin_object = parent_Ship;	// used by the Mine to know for which object to increase score when all near objects are exploded
+			return FO;
+		}
+
+		this.create_Extra = function( sprite_factory, x, y, popped_up_from_explosion, extra_taken_fct, extra_taken_sound )
+		{
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Extra, true );
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( sprite_factory, this.act_extra, false, this.snd_new_extra ) );
+			FO.pos.x = x;
+			FO.pos.y = y;
+			FO.popped_up_from_explosion = popped_up_from_explosion;
+			FO.set_active_sprite( FlyingObjectModes.normal, true );
+			FO.a_v_velocity = kor.Vec.from_orientation( Math.random() * kor.Vec.twoPI, this.extra_initial_speed );
+			FO.a_start_time = this.timer.time;
+			FO.a_end_time = this.timer.time + this.extra_stay_delay;
+			FO.calc_absolute();
+			FO.skip_collisions = true;
+			FO.score_on_taken = 100;		// score increase value when the player takes the extra
+			FO.extra_taken_fct = extra_taken_fct;
+			FO.extra_taken_sound = extra_taken_sound;
+			return FO;
+		}
+
+		this.create_Danger = function( x, y, popped_up_from_explosion )
+		{
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Danger, true );
+
+			var s = (this.game_level - 1) / 15;
+			if( s > 1 ) s = 1;
+			FO.danger_initial_speed = kor.Scalar.interpolate( this.danger_speed_min.initial, this.danger_speed_max.initial, s );
+			FO.danger_rot_speed = kor.Scalar.interpolate( this.danger_speed_min.rot, this.danger_speed_max.rot, s );
+			FO.danger_max_speed = kor.Scalar.interpolate( this.danger_speed_min.max, this.danger_speed_max.max, s );
+			FO.danger_acceleration = kor.Scalar.interpolate( this.danger_speed_min.acceleration, this.danger_speed_max.acceleration, s );
+
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Danger_factory, this.act_danger, false, this.snd_danger ) );
+			FO.set_sprite( FlyingObjectModes.explosion, new kor.flying_object_mode( this.spriteFactories.Explosion_C_factory, this.act_explode, false, this.snd_explosion ) );
+			FO.pos.x = x;
+			FO.pos.y = y;
+			FO.popped_up_from_explosion = popped_up_from_explosion;
+			FO.set_active_sprite( FlyingObjectModes.normal, true );
+			FO.near_objects = [];			// we want to get near_objects to aim onto the nearest player ship
+			FO.near_distance_sqr = function() { var d = that.danger_detect_distance_scale * that.display_mean_length(); return d * d; };
+			FO.a_start_time = this.timer.time;
+			FO.a_v_velocity = kor.Vec.from_orientation( Math.random() * kor.Vec.twoPI, FO.danger_initial_speed );
+			FO.calc_absolute();
+			FO.score_on_destroy = 500;
+			return FO;
+		}
+
+		this.create_Mine = function()
+		{
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Mine, false );
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Mine_factory, this.act_just_fly ) );
+			FO.set_sprite( FlyingObjectModes.explosion, new kor.flying_object_mode( this.spriteFactories.Explosion_A_factory, this.act_explode_mine, false, this.snd_destroy ) );
+			var POR = kor.Vec.rect_border_pos_orientation_range( this.sceneryPainter.surface.display_rect, Math.random() );
+			FO.pos = POR.pos;
+			FO.set_active_sprite( FlyingObjectModes.normal );
+
+			var max_speed = this.mine_max_speed_in_level();
+			var min_speed = max_speed * 0.5;
+			var speed = (max_speed - min_speed) * Math.random() + min_speed;
+
+			FO.a_v_velocity = kor.Vec.from_orientation( POR.pick_orientation( Math.random() ), speed );
+			FO.a_start_time = this.timer.time;
+			FO.calc_absolute();
+			FO.score_on_destroy = 10;
+			return FO;
+		}
+
+		//! This creates a kor.flying_object just used to have an actuator and check for near objects to explode. It does not have any sprite.
+		this.create_Shockwave = function( x, y )
+		{
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Shockwave, true );	// we must set as collidable just because we want to get near_objects.
+			// Note: If you do not want a visible shockwave, just use the Dummy_factory instead.
+			//FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Dummy_factory, this.act_shockwave ) );
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Shockwave_factory, this.act_shockwave ) );
+			FO.skip_collisions = true;
+			FO.pos.x = x;
+			FO.pos.y = y;
+			FO.scale = 0;
+			FO.set_active_sprite( FlyingObjectModes.normal );
+			FO.near_objects = [];		// we want to get near_objects to explode them (but just those which have been created before the shockwave)
+			FO.near_distance = function()
+			{
+				var f = (that.timer.time - this.creation_time) / that.shockwave_duration;
+				return that.shockwave_final_distance() * f;
+			}
+			FO.near_distance_sqr = function()
+			{
+				var d = this.near_distance();
+				return d * d;
+			}
+			FO.calc_absolute();
+			FO.shocked_objects = [];	// contains the objects that have been already tested against the shockwave, so that they are not retried for exploding while the shockwave flies further away (e.g. when player prevented being exploded with shield on while shockwave first time passed him)
+
+			this.foLastShockwave = FO;	// last shockwave used to know for a computer simulated player ship if/when to activate the shield once a mine has exploded
+			FO.on_releasing = function()
+			{
+				// we check if the shockwave object is cashed in the game session and remove it.
+				if( that.foLastShockwave && that.foLastShockwave.Index === this.Index )
+					that.foLastShockwave = null;
+			}
+			return FO;
+		}
+
+		this.create_Enemy = function()
+		{
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Enemy, true );
+			FO.children = new kor.ordered_dictionary();	// the enemy ship has child flares
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Enemy_factory, this.act_enemy, true ) );
+			FO.set_sprite( FlyingObjectModes.explosion, new kor.flying_object_mode( this.spriteFactories.Explosion_A_factory, this.act_explode, false, this.snd_destroy ) );
+			FO.set_active_sprite( FlyingObjectModes.normal, true );
+			var POR = kor.Vec.rect_border_pos_orientation_range( this.sceneryPainter.surface.display_rect, Math.random() );
+			FO.pos = POR.pos;
+			FO.orientation = POR.pick_orientation( Math.random() );
+			FO.a_v_velocity = kor.Vec.from_orientation( FO.orientation, this.enemy_start_speed );
+			FO.calc_absolute();
+			FO.near_objects = [];		// we want to get near_objects (the player ships to target on)
+			FO.near_distance_sqr = function() { var d = that.enemy_detect_distance_scale * that.display_long(); return d * d; };
+			FO.score_on_destroy = 200;
+			FO.flares_offset = -36;
+			this.create_Flares( FO, 0, FO.flares_offset );
+			this.create_Blue_Flare( FO, 0, FO.flares_offset );
+			FO.on_exploding = function()
+			{
+				this.release_children();
+				--that.enemies_count;
+			}
+			FO.on_releasing = function()
+			{
+				this.release_children();
+				// Notice, onEnemyAppearTimer reactivates the timer. If an enemy stays long in the game it can happen that
+				// another enemy appears. If you do not want that, pass the timer to create_Enemy() and disable it immediately.
+				// And in here (on_releasing()), you can then reactivate the timer using initEnemyAppearTimer().
+			}
+			FO.time_for_next_shot = this.timer.time + 500;
+			FO.time_for_next_orientation_change = this.timer.time + 500;
+			FO.desired_orientation = FO.orientation;	// desired_orientation is where the enemy wants to have its final orientation when there is no target.
+			++that.enemies_count;
+			return FO;
+		}
+
+		this.create_Flares = function( foParent, x, y )
+		{
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Flare, false );
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Flares_factory, this.act_flares, false ) );
+			FO.set_active_sprite( FlyingObjectModes.normal );
+			FO.skip_collisions = true;
+			FO.pos.x = x;
+			FO.pos.y = y;
+			FO.make_relative_to( foParent );
+			FO.calc_absolute();
+			return FO;
+		}
+
+		this.create_Blue_Flare = function( foParent, x, y )
+		{
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Flare, false );
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Blue_flare_factory, null, false ) );
+			FO.set_active_sprite( FlyingObjectModes.normal );
+			FO.skip_collisions = true;
+			FO.pos.x = x;
+			FO.pos.y = y;
+			FO.make_relative_to( foParent );
+			FO.calc_absolute();
+			return FO;
+		}
+
+		this.create_Enemy_Shot = function( foEnemy )
+		{
+			if( this.snd_enemy && this.sounds_on )
+				this.snd_enemy.play();
+
+			var FO = new kor.flying_object( this, FlyingObjectKinds.Enemy_Shot, true );
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Enemy_Shot_factory, this.act_enemy_shot ) );
+			FO.set_active_sprite( FlyingObjectModes.normal );
+			FO.pos.x = 0;
+			FO.pos.y = foEnemy.flares_offset;
+			FO.calc_absolute_as_if_relative( foEnemy );
+			FO.a_v_velocity = kor.Vec.from_orientation( FO.orientation, 0.4 );
+			if( foEnemy.a_v_velocity )
+				FO.a_v_velocity = kor.Vec.add( FO.a_v_velocity, foEnemy.a_v_velocity );
+			FO.calc_absolute();
+			FO.score_on_avoided = 250;
+			FO.explode = function( FO_by ) { this.release(); return false; }
+			// now we add a flare to make the shot look more exciting
+			FO.children = new kor.ordered_dictionary();
+			this.create_Flares( FO, 0, 0 );
+			FO.on_exploding = function() { this.release_children(); }
+			FO.on_releasing = function() { this.release_children(); }
+			return FO;
+		}
+
+		// -- actuators ---------------------------------------------------------
+
+		this.object_kinds_for_team_mode = [FlyingObjectKinds.Player, FlyingObjectKinds.Shot, FlyingObjectKinds.Protect];	// the object_kind's to ignore for collision when team mode is on.
+
+		this.kinds_for_extras_collision = [SpriteKinds.playership, SpriteKinds.playershield];	// the sprite kinds that may collide with and pick up an extra.
+		this.kinds_for_dangers_target = [SpriteKinds.playership, SpriteKinds.playershield];	// the sprite kinds that may be targets for the danger object.
+		// Note: If you want to make a danger object more intelligent in the way that it is capable of detecting
+		// if a target ship is shielded so that it does not aim on it anymore but looks for another ship
+		// to aim on, then remove SpriteKinds.playershield from kinds_for_dangers_target.
+
+		this.kinds_for_computer_players_target = [SpriteKinds.playership, SpriteKinds.mine, SpriteKinds.comet, SpriteKinds.danger, SpriteKinds.enemy];
+
+		//! @param FO the flying_object
+		this.act_just_fly = function( FO )
+		{
+			FO.pos = kor.Vec.keep_in_rect( kor.Vec.add( FO.pos, kor.Vec.scale( FO.a_v_velocity, that.timer.delta_t ) ), that.sceneryPainter.surface.display_rect );
+		}
+
+		//! @param FO the flying_object
+		this.move_player = function( FO )
+		{
+			var inputs = FO.player_inputs;
+
+			if( inputs != null )
+			{
+				// positioning and orientation
+				var rotate = 0;
+				var rotate_accel_time = 250; //190;
+				if( inputs.left.pressed )  rotate +=  0.001 / rotate_accel_time * kor.Vec.twoPI * Math.min( this.timer.time - inputs.left.since, rotate_accel_time );
+				if( inputs.right.pressed ) rotate += -0.001 / rotate_accel_time * kor.Vec.twoPI * Math.min( this.timer.time - inputs.right.since, rotate_accel_time );
+				if( rotate )
+					FO.orientation = (FO.orientation + this.timer.delta_t * rotate + kor.Vec.huge_2PI) % kor.Vec.twoPI;
+
+				// slow down
+				var slow_down = inputs.backwd.pressed ? 0.03 : 0.005;
+				slow_down *= this.timer.delta_t * 0.05;		// *0.05 indicates that the above slow_down value was specified for a delta_t of 20 millisec, so 50 fps.
+				if( slow_down > 1 ) slow_down = 1;
+				// a_v_velocity is in pixels per millisecond
+				FO.a_v_velocity.x *= 1 - slow_down;
+				FO.a_v_velocity.y *= 1 - slow_down;
+
+				if( inputs.forewd.pressed )
+				{
+					var v_accel = kor.Vec.from_orientation( FO.orientation, 0.0005 * this.timer.delta_t );
+					FO.a_v_velocity = kor.Vec.add( FO.a_v_velocity, v_accel );
+				}
+
+				if( inputs.forewd.down && this.snd_thrust && this.sounds_on )
+					this.snd_thrust.play();
+
+				FO.activate_flame( inputs.forewd.pressed );
+			}
+
+			FO.pos = kor.Vec.keep_in_rect( kor.Vec.add( FO.pos, kor.Vec.scale( FO.a_v_velocity, this.timer.delta_t ) ), this.sceneryPainter.surface.display_rect );
+		}
+
+		//! The player pressed the fire key and may fire a shot
+		this.fire_player = function( FO )
+		{
+			if( FO.laser_shot ) this.create_Laser( FO );
+			else if( FO.spread_shot ) this.create_Shot2( FO, 0 );
+			else this.create_Shot1( FO, 0 );
+
+			if( FO.spread_shot )
+			{
+				this.create_Shot1( FO, 30 * kor.Vec.twoPI / 360 );
+				this.create_Shot1( FO, -30 * kor.Vec.twoPI / 360 );
+			}
+
+			for( var i = 0 ; i < FO.missiles_count ; ++i )
+				if( FO.missiles_next_shot[i] <= this.timer.time )
+				{
+					FO.missiles_next_shot[i] = this.timer.time + this.missile_launch_delay;
+					this.create_Missile( FO );
+				}
+		}
+
+		this.simulate_computer_player_inputs = function( FO )
+		{
+			var inputs = FO.player_inputs;
+
+			if( inputs == null )
+				return;
+
+			// if we have been aiming a flying_object in the frame before already, we prefer continuing aiming that one.
+			var aimed = FO.foAimedByComputer;
+			if( aimed )
+			{
+				// if the already aimed object is by angle behind the front half view of the player ship,
+				// we let it go. that is e.g. when the aimed one goes over the screen border and round robin
+				// appears on the other side.
+				if( kor.Vec.undirected_angle( kor.Vec.sub(aimed.absolute_pos, FO.absolute_pos), kor.Vec.from_orientation(FO.orientation, 1) ) > kor.Vec.halfPI )
+					aimed = null;
+			}
+			var near_obj = aimed ? FO.find_in_near_objects( aimed ) : null;
+			// But if it's an extra, we check if we still need it (maybe we accidentially picked one up already).
+			if( near_obj && near_obj.FO.extra_taken_fct && !near_obj.FO.extra_taken_fct( FO, true ) )
+				near_obj = null;
+
+			// try to aim the nearest extra, if any or if we are aiming something else
+			if( !near_obj || !near_obj.FO.extra_taken_fct )
+			{
+				var n = FO.get_nearest_object_data_of_sprite_kinds(
+					[SpriteKinds.extra],
+					function( foNear, foCaller ) { return foNear.extra_taken_fct && foNear.extra_taken_fct( FO, true ); }
+				);
+				if( n )
+					near_obj = n;
+			}
+
+			if( near_obj == null )
+				near_obj = FO.get_nearest_object_data_of_sprite_kinds( that.kinds_for_computer_players_target );
+
+			if( near_obj )
+			{
+				// We got a target to aim on. We hunt it down.
+
+				var foNear = near_obj.FO;
+				FO.foAimedByComputer = foNear;
+
+				var dest_direction = kor.Vec.to_orientation( kor.Vec.sub( foNear.absolute_pos, FO.absolute_pos ) );
+				var angle = dest_direction - FO.orientation;
+				if( angle < -Math.PI ) angle += kor.Vec.twoPI;
+				if( angle >  Math.PI ) angle -= kor.Vec.twoPI;
+
+				var bMayShoot = angle >= -kor.Vec.twoPI * 0.03 && angle <= kor.Vec.twoPI * 0.03;	// && !foNear.extra_taken_fct;	// we want to shoot even at extras. that is not to hit them but to hit other things while being on the way to the extra.
+
+				// check if to turn left or right.
+				// Notice, we just need the pressed state of the input. down-key event we do not need for turning player ship.
+				// And here is what to take care of: When we are by angle just very slightly away from the ideal direction, we should not correct
+				// the turning rotation anymore otherwise the ship would turn left & right all the time looking like trembling.
+				// To prevent that, we do like this:
+				// When we are oriented far away, we turn into that direction. If we are rotating but already inside a certain angle
+				// to the desired direction, we continue rotating but will not correct into the other way when suddenly going over that direction.
+				// But, after a delay, we allow correcting the direction. That does not appear as trembling and it allows for better shooting when
+				// going longer time into the same direction.
+				// Still, with that delayed correcting, we do it just above a certain minimum angle.
+				var bMayCorrectTurn =
+					(!FO.lastTurnTimestamp || (this.timer.time >= FO.lastTurnTimestamp + this.computer_player_turn_to_correct_aiming_delay)) &&
+					(angle < -this.computer_player_turn_to_correct_aiming_min_angle || angle > this.computer_player_turn_to_correct_aiming_min_angle);
+				var bTurnLeft  = (FO.bLastTurnWasLeft  || bMayCorrectTurn) ? (angle >  0.001) : (angle >  kor.Vec.twoPI * 0.05);
+				var bTurnRight = (FO.bLastTurnWasRight || bMayCorrectTurn) ? (angle < -0.001) : (angle < -kor.Vec.twoPI * 0.05);
+				if( bTurnLeft || bTurnRight ) FO.lastTurnTimestamp = this.timer.time;
+				inputs.left.down = !inputs.left.pressed && bTurnLeft;
+				inputs.right.down = !inputs.right.pressed && bTurnRight;
+				inputs.left.pressed = bTurnLeft;
+				inputs.right.pressed = bTurnRight;
+				if( bTurnLeft || bTurnRight )
+				{
+					FO.bLastTurnWasLeft = bTurnLeft;
+					FO.bLastTurnWasRight = bTurnRight;
+				}
+
+				// check if/when to shoot next
+				if( this.timer.time >= FO.time_for_next_shot && bMayShoot )
+				{
+					inputs.fire.down = true;	// down-key event is sufficient. pressed state we don't need for firing with player ship.
+					FO.time_for_next_shot = this.time_for_next_computer_shot();
+				}
+
+				// check when to accelerate
+				var fly_min_distance_sqr = this.computer_player_fly_min_distance_sqr();
+				var bInFlyingAngle = angle >= -kor.Vec.twoPI * 0.2 && angle <= kor.Vec.twoPI * 0.2;
+				var bMayAccelerate = bInFlyingAngle && (near_obj.distance_sqr >= fly_min_distance_sqr || foNear.extra_taken_fct);		// if we hunt an extra, we accelerate no matter how near we are.
+				inputs.forewd.down = !inputs.forewd.pressed && bMayAccelerate;
+				inputs.forewd.pressed = bMayAccelerate;		// pressed state is sufficient. down-key event we do not need for accelerating player ship.
+
+				// and when to break
+				var bMayBreak = !bMayAccelerate && bInFlyingAngle && near_obj.distance_sqr < fly_min_distance_sqr && !foNear.extra_taken_fct;		// if we hunt an extra, we do not break
+				inputs.backwd.down = !inputs.backwd.pressed && bMayBreak;
+				inputs.backwd.pressed = bMayAccelerate;		// pressed state is sufficient. down-key event we do not need for slowing down player ship.
+			}
+			else
+			{
+				// if no target
+				FO.foAimedByComputer = null;
+
+				inputs.left.down = inputs.left.pressed = false;
+				inputs.right.down = inputs.right.pressed = false;
+				inputs.forewd.down = inputs.forewd.pressed = false;
+				inputs.backwd.down = inputs.backwd.pressed = false;
+				inputs.fire.down = inputs.fire.pressed = false;
+			}
+
+			// that the player ship's near_objects contains extras is done just in case of computer simulated player
+			// because we want that ship to hunt extras, too. So since we can now safely remove them again.
+			// And we want them removed for below where we want just dangerous objects to know if to activate the shield.
+			FO.remove_near_objects_of_kind( FlyingObjectKinds.Extra );
+
+			// we activate the shield
+			// - if any object that can destroy us is very near (regardless which one is aimed),
+			// - or when we are in a (not so large) certain distance to any mine
+			// - or after a short human-like reaction delay when a mine has exploded (foLastShockwave) and we are close enough to its shockwave center
+			// - or for a new level the new comets are about to appear, and we are near the screen border,
+			// note: near_obj is the (newly) aimed object.
+			var near_obj_dangerous = FO.near_objects.length > 0 ? FO.near_objects[FO.near_objects.length - 1] : null;		// nearest dangerous object
+			var near_mine = FO.get_nearest_object_data_of_sprite_kinds( [SpriteKinds.mine] );		// checking nearest mine
+			if( (near_obj_dangerous && near_obj_dangerous.distance_sqr <= this.computer_player_shield_distance_sqr( FO, near_obj_dangerous.FO )) ||
+				(near_mine && near_mine.distance_sqr <= this.computer_player_shielding_mine_distance_sqr( inputs.shield.pressed )) ||
+				(this.foLastShockwave && this.timer.time >= this.foLastShockwave.creation_time + this.computer_player_shockwave_reaction_delay && kor.Vec.distance_sqr(FO.pos, this.foLastShockwave.pos) < this.computer_player_react_on_any_shockwave_distance_sqr()) ||
+				(
+					this.new_level &&
+					(this.timer.time >= this.new_level_since + this.new_level_delay * 0.9) &&
+					!kor.Vec.is_in_rect( FO.absolute_pos, kor.Rect.deflate(
+						this.sceneryPainter.surface.display_rect,
+						this.spriteFactories.Comet_sprite_factories.get_factory( this.game_level, 0 ).get_first_image().collision_radius +
+						FO.active_collision_radius +
+						5
+					 ))
+				))
+			{
+				inputs.shield.down = !inputs.shield.pressed;
+				inputs.shield.pressed = true;		// pressed state is sufficient. down-key event we do not need for accelerating player ship.
+				FO.last_time_shield_was_on = this.timer.time;
+			}
+			else
+			if( inputs.shield.pressed && (FO.last_time_shield_was_on == null || this.timer.time > FO.last_time_shield_was_on + this.computer_player_shield_remain_on_delay) )
+				inputs.shield.down = inputs.shield.pressed = false;
+		}
+
+		//! @param FO the flying_object
+		this.act_player_ship = function( FO )
+		{
+			if( FO.warping_in )
+			{
+				FO.scale += that.warp_in_speed * that.timer.delta_t;
+				if( FO.scale >= 1 )
+				{
+					FO.scale = 1;
+					FO.warping_in = false;
+					FO.set_collidable( true );
+					FO.skip_collisions = false;
+				}
+			}
+
+			if( that.team_mode )
+			{
+				FO.remove_collisions_of_kinds( that.object_kinds_for_team_mode );
+				FO.remove_near_objects_of_kinds( that.object_kinds_for_team_mode );
+			}
+
+			FO.remove_own_near_objects();
+
+			// collision
+			if( FO.collisions.length )
+			{
+				var foCollided = FO.collisions[0];
+				if( foCollided.explode( FO ) )
+					FO.increase_score( foCollided.score_on_destroy );
+				if( FO.explode( foCollided ) )
+				{
+					foCollided.increase_score( FO.score_on_destroy );
+					return;
+				}
+			}
+
+			if( that.simulate_players )
+				that.simulate_computer_player_inputs( FO );
+
+			that.move_player( FO );
+
+			// load up shield slowly
+			if( FO.player.shield < 1 )
+			{
+				FO.player.shield += 0.00009 * that.timer.delta_t;
+				if( FO.player.shield > 1 ) FO.player.shield = 1;
+			}
+
+			var inputs = FO.player_inputs;
+
+			// shield
+			if( inputs != null && inputs.shield.pressed && FO.player.shield > 0.03 )
+				FO.set_active_sprite( FlyingObjectModes.shielded, true );
+
+			// firing
+			if( inputs != null && inputs.fire.down && !FO.warping_in )
+				that.fire_player( FO );
+		}
+
+		//! @param FO the flying_object
+		this.act_player_shielded = function( FO )
+		{
+			// Same warping code path as for act_player_ship(), because during warping the player may activate the shield.
+			if( FO.warping_in )
+			{
+				FO.scale += that.warp_in_speed * that.timer.delta_t;
+				if( FO.scale >= 1 )
+				{
+					FO.scale = 1;
+					FO.warping_in = false;
+					FO.set_collidable( true );
+					FO.skip_collisions = false;
+				}
+			}
+
+			if( that.team_mode )
+			{
+				FO.remove_collisions_of_kinds( that.object_kinds_for_team_mode );
+				FO.remove_near_objects_of_kinds( that.object_kinds_for_team_mode );
+			}
+
+			FO.remove_own_near_objects();
+
+			// collision
+			if( FO.collisions.length )
+			{
+				var foCollided = FO.collisions[0];
+				var vec;
+
+				if( !foCollided.explode( FO ) )
+				{
+					// if the colliding object is not explodable (e.g. like a shot), we play our hit sound
+					if( that.snd_hit_shielded && that.sounds_on )
+						that.snd_hit_shielded.play();
+
+					vec = kor.Vec.scale( kor.Vec.add(
+						kor.Vec.normalize( foCollided.a_v_velocity ),
+						kor.Vec.normalize( kor.Vec.sub( FO.absolute_pos, foCollided.absolute_pos ) )
+					), 0.03 );
+
+					foCollided.a_v_velocity = kor.Vec.sub( foCollided.a_v_velocity, vec );
+					FO.increase_score( foCollided.score_on_avoided );
+				}
+				else
+				{
+					vec = kor.Vec.scale( kor.Vec.normalize( kor.Vec.sub( FO.absolute_pos, foCollided.absolute_pos ) ), 0.05 );
+					FO.increase_score( foCollided.score_on_destroy );
+				}
+
+				// get the direction to the collision object and add acceleration
+				// a bit in the other direction. Also add a bit of rotation.
+				FO.orientation = (FO.orientation + (Math.random() - 0.5) * 0.6 + kor.Vec.huge_2PI) % kor.Vec.twoPI;
+				FO.a_v_velocity = kor.Vec.add( FO.a_v_velocity, vec );
+			}
+
+			if( that.simulate_players )
+				that.simulate_computer_player_inputs( FO );
+
+			that.move_player( FO );
+
+			var inputs = FO.player_inputs;
+
+			// eat up shield energy, or check if user released the key
+			FO.player.shield -= 0.0002 * that.timer.delta_t;
+			if( FO.player.shield <= 0 )
+			{
+				FO.player.shield = 0;
+				FO.set_active_sprite( FlyingObjectModes.normal, true );
+			}
+			else
+			if( inputs != null && !inputs.shield.pressed )
+				FO.set_active_sprite( FlyingObjectModes.normal, true );
+
+			// firing
+			if( inputs != null && inputs.fire.down && !FO.warping_in )
+				that.fire_player( FO );
+		}
+
+		this.act_explode_player_ship = function( FO )
+		{
+			if( FO.active_sprite.sel >= 1 )
+			{
+				--FO.player.lifes;
+
+				/*
+				if( that.simulate_players && FO.player.lifes === 0 )
+				{
+					// when simulating player, we never die. we just start over with player lifes.
+					// That gives endless demo fun. Just necessary if ever we make a simulated player ship vulnerable.
+					// But for now (24.6.2011) we have them invulnerable and so we do not come here anyway.
+					FO.player.lifes = PlayerConsts.start_lifes;
+
+					// a computer simulated player we let reappear randomly anywhere after he lost all his lifes.
+					// this we do to prevent when 2 ship overlap and permanently die when they finished warping in.
+					FO.pos = kor.Vec.rect_any_pos( that.sceneryPainter.surface.display_rect, Math.random(), Math.random() );
+				}
+				*/
+
+				if( FO.player.lifes === 0 )
+				{
+					// The player lost his last life.
+					FO.release();
+
+					// If the last player died -> game over
+					if( --that.players.alive_count <= 0 )
+					{
+						that.game_over();
+
+						// when simulating player, we simply restart the game just when all players died.
+						if( that.simulate_players )
+							theApp.RestartGame();
+					}
+				}
+				else
+				{
+					// The player lost a life, but still has one/some left.
+					// We let him reappear after a while.
+					FO.disable();
+					FO.active_mode = FlyingObjectModes.hidden;
+					FO.active_actuator_fct = that.act_delay_player;
+					FO.reappear_time = that.timer.time + 3000;
+					FO.orientation = 0;
+					FO.a_v_velocity = { x: 0, y: 0 };
+					FO.set_collidable( false );
+					FO.skip_collisions = true;
+					FO.exploded_by = null;
+					FO.player.shield = 1;
+				}
+
+				return;
+			}
+
+			FO.active_sprite.select_clip( FO.active_sprite.sel + that.explosion_speed * that.timer.delta_t );
+		}
+
+		this.act_delay_player = function( FO )
+		{
+			if( that.timer.time >= FO.reappear_time )
+			{
+				// warp-in the player ship
+				FO.set_active_sprite( FlyingObjectModes.normal, true );
+				FO.reappear_time = 0;
+				FO.scale = 0;
+				FO.warping_in = true;
+				FO.set_collidable( false );
+				FO.skip_collisions = true;		// when warping in, a player ship cannot be destroyed
+				FO.calc_absolute();
+				if( that.snd_warp_in && that.sounds_on )
+					that.snd_warp_in.play();
+
+				FO.next_life();
+			}
+		}
+
+		this.act_flame = function( FO )
+		{
+			// We flicker the flame. For that, we change the sprite files for the kor.sprite_one_of_many.
+			// We expect the apply_to() implementation to be fast for this.
+			if( FO.active_sprite )
+			{
+				var inc = that.timer.delta_t / 33;		// 33ms to achieve a flickering switch with 30 fps
+				if( inc > 1 ) inc = 1;					// and if fps goes below that, we want 1 sprite change per frame
+				FO.active_flame_set_index += inc;
+				FO.active_flame_set_index %= that.spriteFactories.Flame_factories.length;
+				that.spriteFactories.Flame_factories[Math.floor( FO.active_flame_set_index )].apply_to( FO.active_sprite );
+			}
+		}
+
+		this.act_explode = function( FO )
+		{
+			if( FO.active_sprite.sel >= 1 )
+			{
+				FO.release();
+				return;
+			}
+
+			FO.active_sprite.select_clip( FO.active_sprite.sel + that.explosion_speed * that.timer.delta_t );
+		}
+
+		this.act_shot = function( FO )
+		{
+			// collision
+			// Notice, we also check collisions with other shot objects. That way, it is possible (though very hard)
+			// to eliminate another object's shot with our own shot.
+			if( that.team_mode )
+				FO.remove_collisions_of_kinds( that.object_kinds_for_team_mode );
+
+			if( FO.collisions.length )
+			{
+				var foCollided = FO.collisions[0];
+				if( foCollided.explode( FO ) )
+				{
+					if( FO.a_origin_object )
+						FO.a_origin_object.increase_score( foCollided.score_on_destroy );
+				}
+				else
+				{
+					if( FO.a_origin_object )
+						FO.a_origin_object.increase_score( foCollided.score_on_avoided );
+				}
+				FO.release();
+				return;
+			}
+
+			FO.pos = kor.Vec.keep_in_rect( kor.Vec.add( FO.pos, kor.Vec.scale( FO.a_v_velocity, that.timer.delta_t ) ), that.sceneryPainter.surface.display_rect );
+
+			if( that.timer.time > FO.a_end_time )
+				FO.release();
+		}
+
+		this.act_missile = function( FO )
+		{
+			// collision
+			// Notice, we also check collisions with other missiles or shot objects. That way, it is possible (though very hard)
+			// to eliminate another object's missiles or shots with our own missile.
+			if( that.team_mode )
+				FO.remove_collisions_of_kinds( that.object_kinds_for_team_mode );
+
+			if( FO.collisions.length )
+			{
+				var foCollided = FO.collisions[0];
+				if( foCollided.explode( FO ) )
+					if( FO.a_origin_object )
+						FO.a_origin_object.increase_score( foCollided.score_on_destroy );
+				FO.explode();
+				return;
+			}
+
+			if( that.timer.time >= FO.a_start_fly_time )
+			{
+				// We find the nearest flying_object to aim on, if we do not have one found already.
+				// Notice, if the one we are aming on is destroyed by something else, the missile will just continue flying not aiming at anything.
+				// This can be switched by en/disabling the following if.
+				//if (!FO.aiming_on && FO.find_target_mode)
+				{
+					FO.find_target_mode = false;
+
+					//FO.remove_near_objects_of_kind( FlyingObjectKinds.Protect );
+					FO.remove_near_objects_of_kinds( [FlyingObjectKinds.Protect, FlyingObjectKinds.Shot, FlyingObjectKinds.Enemy_Shot] );	// note: remove Shot and Enemy_Shot if you want missiles to hunt also other dangerous shots or missiles.
+					FO.remove_own_near_objects();
+					if( that.team_mode )
+						FO.remove_near_objects_of_kinds( that.object_kinds_for_team_mode );
+
+					if( FO.near_objects.length > 0 )
+						FO.aiming_on = FO.near_objects.pop().FO;
+				}
+
+				if (FO.aiming_on && !FO.aiming_on.released && !FO.aiming_on.exploded_by)
+				{
+					var dest_direction = kor.Vec.to_orientation( kor.Vec.sub( FO.aiming_on.absolute_pos, FO.absolute_pos ) );
+					var offset = dest_direction - FO.orientation;
+					if( offset < -Math.PI ) offset += kor.Vec.twoPI;
+					if( offset >  Math.PI ) offset -= kor.Vec.twoPI;
+					var rot_speed = that.missile_rot_speed * that.timer.delta_t;
+					if( offset > rot_speed ) offset = rot_speed;
+					if( offset < -rot_speed ) offset = -rot_speed;
+					FO.orientation = (FO.orientation + offset + kor.Vec.huge_2PI) % kor.Vec.twoPI;
+				}
+			}
+
+			// slow down
+			// a_v_velocity is in pixels per millisecond
+			FO.a_v_velocity.x *= 1 - that.missile_slow_down;
+			FO.a_v_velocity.y *= 1 - that.missile_slow_down;
+
+			if( that.timer.time >= FO.a_start_fly_time )
+			{
+				var v_accel = kor.Vec.from_orientation( FO.orientation, that.missile_acceleration );
+				FO.a_v_velocity = kor.Vec.add( FO.a_v_velocity, v_accel );
+
+				var velocity = kor.Vec.length( FO.a_v_velocity );
+				if( velocity > that.missile_max_speed )
+					FO.a_v_velocity = kor.Vec.scale( FO.a_v_velocity, that.missile_max_speed / velocity );
+			}
+
+			FO.pos = kor.Vec.keep_in_rect( kor.Vec.add( FO.pos, kor.Vec.scale( FO.a_v_velocity, that.timer.delta_t ) ), that.sceneryPainter.surface.display_rect );
+
+			// create smoke trail
+			if (FO.last_smoke_pos == null || (kor.Vec.distance_sqr( FO.last_smoke_pos, FO.absolute_pos ) >= that.missile_smoke_trail_step_sqr))
+			{
+				that.create_Smoke(
+					that.spriteFactories.Smoke_factory,
+					FO.absolute_pos.x,
+					FO.absolute_pos.y,
+					(Math.random() - 0.5) * that.missile_smoke_trail_max_rotation
+				);
+
+				FO.last_smoke_pos = { x: FO.absolute_pos.x, y: FO.absolute_pos.y };
+			}
+
+			// explode when lifetime ended
+			if( that.timer.time > FO.a_end_time )
+				FO.explode();
+		}
+
+		this.act_smoke = function( FO )
+		{
+			FO.opacity -= that.timer.delta_t * FO.fade_out;
+			FO.scale += that.timer.delta_t * FO.scale_up;
+			FO.orientation += that.timer.delta_t * FO.rotation;
+
+			FO.active_sprite.globalAlpha = FO.opacity;
+
+			if (FO.opacity <= 0)
+				FO.release();
+		}
+
+		this.act_protect = function( FO )
+		{
+			if( FO.relative_to_state_change === kor.RelativeTo_States.Died )
+			{
+				// guard/protector now dies
+				FO.release();
+				if( that.snd_die_guard && that.sounds_on )
+					that.snd_die_guard.play();
+				return;
+			}
+
+			var foParent = FO.relative_to;
+			if( foParent == null ) return;
+
+			// collision
+			FO.remove_collisions_of_kind( FlyingObjectKinds.Protect );
+			if( that.team_mode )
+				FO.remove_collisions_of_kinds( that.object_kinds_for_team_mode );
+				// We do not need to call FO.relative_to.remove_near_objects_of_kinds( that.object_kinds_for_team_mode ),
+				// because a guard/protector's actuator comes after the one of its relative_to object and there
+				// the player ship's actuator will have done this call already.
+
+			if( FO.collisions.length )
+			{
+				var foCollided = FO.collisions[0];
+				var bGuardDied = false;
+
+				if( FO.survive_hit_count >= 0 )
+					if( FO.survive_hit_count-- === 0 )
+					{
+						// guard/protector now dies
+						FO.release();
+						if( that.snd_die_guard && that.sounds_on )
+							that.snd_die_guard.play();
+
+						bGuardDied = true;
+					}
+
+				if( !foCollided.explode( FO ) )
+				{
+					// if the colliding object is not explodable, we play our hit sound
+					if( that.snd_hit_guard && that.sounds_on && FO.active_sprite )
+						that.snd_hit_guard.play();
+					foParent.increase_score( foCollided.score_on_avoided );
+				}
+				else
+				{
+					foParent.increase_score( foCollided.score_on_destroy );
+
+					// if the colliding object *is* explodable (e.g. like a comet), we play our hit sound just the same.
+					// This would not really be necessary since we expect the exploding object to make an explosion sound
+					// anyway, but it is nicer for the player to know whenever a guard/protector did his job.
+					if( that.snd_hit_guard && that.sounds_on )
+						that.snd_hit_guard.play();
+				}
+
+				if( bGuardDied )
+					return;
+			}
+
+			// animation
+			if( foParent.near_objects.length > 0 )
+			{
+				var foNear = foParent.near_objects.pop().FO;
+				var dest_direction = kor.Vec.to_orientation( kor.Vec.sub( foNear.absolute_pos, foParent.absolute_pos ) );
+				var offset = dest_direction - FO.orientation;
+				if( offset < -Math.PI ) offset += kor.Vec.twoPI;
+				if( offset >  Math.PI ) offset -= kor.Vec.twoPI;
+				var rot_speed = FO.search_rot_speed * that.timer.delta_t;
+				if( offset > rot_speed ) offset = rot_speed;
+				if( offset < -rot_speed ) offset = -rot_speed;
+				FO.orientation = (FO.orientation + offset + kor.Vec.huge_2PI) % kor.Vec.twoPI;
+			}
+			else
+			{
+				var offset = FO.idle_rot_speed * that.timer.delta_t;
+				FO.orientation = (FO.orientation + offset + kor.Vec.huge_2PI) % kor.Vec.twoPI;
+			}
+
+			FO.pos = kor.Vec.from_orientation( FO.orientation, FO.radius );
+		}
+
+		this.act_extra = function( FO )
+		{
+			FO.active_sprite.select_circular( FO.active_sprite.sel + that.extra_anim_speed * that.timer.delta_t );
+
+			if( FO.collisions.length )
+			{
+				var foCollided = FO.get_collision_of_sprite_kinds( that.kinds_for_extras_collision );
+				if( foCollided )
+				{
+					// foCollided is the ship that now takes the extra
+					if( FO.extra_taken_fct( foCollided ) )
+					{
+						foCollided.increase_score( FO.score_on_taken );
+						if( FO.extra_taken_sound && that.sounds_on )
+							FO.extra_taken_sound.play();
+						FO.release();
+						return;
+					}
+				}
+			}
+
+			if( that.timer.time >= FO.a_end_time )
+			{
+				FO.release();
+				if( that.snd_extra_disappear && that.sounds_on )
+					that.snd_extra_disappear.play();
+				return;
+			}
+
+			// slow down
+			// a_v_velocity is in pixels per millisecond
+			FO.a_v_velocity.x *= 1 - that.extra_slow_down;
+			FO.a_v_velocity.y *= 1 - that.extra_slow_down;
+
+			FO.pos = kor.Vec.keep_in_rect( kor.Vec.add( FO.pos, kor.Vec.scale( FO.a_v_velocity, that.timer.delta_t ) ), that.sceneryPainter.surface.display_rect );
+		}
+
+		this.act_danger = function( FO )
+		{
+			FO.active_sprite.select_circular( FO.active_sprite.sel + that.danger_anim_speed * that.timer.delta_t );
+
+			// The danger object never checks for collisions, only for near objects.
+			// Collisions with danger objects are treated by all the other objects where collision is relevant.
+
+			// We get the nearest player ship to aim on.
+			var foNear = FO.get_nearest_object_of_sprite_kinds( that.kinds_for_dangers_target );
+			if( foNear )
+			{
+				var dest_direction = kor.Vec.to_orientation( kor.Vec.sub( foNear.absolute_pos, FO.absolute_pos ) );
+				var offset = dest_direction - FO.orientation;
+				if( offset < -Math.PI ) offset += kor.Vec.twoPI;
+				if( offset >  Math.PI ) offset -= kor.Vec.twoPI;
+				if( FO.foAimed == null )	// if we did not have any aimed object before, we allow jumping the orientation immediately towards the new aim
+				{
+					var rot_speed = FO.danger_rot_speed * that.timer.delta_t;
+					if( offset > rot_speed ) offset = rot_speed;
+					if( offset < -rot_speed ) offset = -rot_speed;
+				}
+				FO.orientation = (FO.orientation + offset + kor.Vec.huge_2PI) % kor.Vec.twoPI;
+			}
+
+			FO.foAimed = foNear;
+
+			// slow down
+			// a_v_velocity is in pixels per millisecond
+			FO.a_v_velocity.x *= 1 - that.danger_slow_down;
+			FO.a_v_velocity.y *= 1 - that.danger_slow_down;
+
+			if( foNear &&
+				kor.Vec.length( FO.a_v_velocity ) < FO.danger_max_speed )
+			{
+				var v_accel = kor.Vec.from_orientation( FO.orientation, FO.danger_acceleration );
+				FO.a_v_velocity = kor.Vec.add( FO.a_v_velocity, v_accel );
+			}
+
+			FO.pos = kor.Vec.keep_in_rect( kor.Vec.add( FO.pos, kor.Vec.scale( FO.a_v_velocity, that.timer.delta_t ) ), that.sceneryPainter.surface.display_rect );
+		}
+
+		this.act_explode_mine = function( FO )
+		{
+			// create the shockwave object and set the invoker as the one getting the scores of objects destroyed by the shockwave
+			var foShockwave = that.create_Shockwave( FO.absolute_pos.x, FO.absolute_pos.y );
+			var fo_origin = FO.exploded_by;
+			if( fo_origin && fo_origin.origin_for_score )
+				fo_origin = fo_origin.origin_for_score;		// if mine is exploded by another shockwave, take over the origin_for_score so that the player gets the scores also for the objects destroyed by the shockwave this mine now will produce.
+			if( fo_origin && fo_origin.a_origin_object )
+				fo_origin = fo_origin.a_origin_object;		// if a shot destroyed the mine, the player shall get the score for the objects being destroyed by the shockwave this mine now will produce.
+			foShockwave.origin_for_score = fo_origin;
+
+			// for the rest of the explosion of the Mine, we do just normal exploding.
+			FO.active_actuator_fct = that.act_explode;
+
+			that.act_explode( FO );
+
+			that.shockwave_shake_amount += that.mine_shockwave_shake_strength;
+			if( that.shockwave_shake_amount > that.shockwave_shake_max )
+				that.shockwave_shake_amount = that.shockwave_shake_max;
+		}
+
+		this.act_shockwave = function( FO )
+		{
+			if( that.timer.time > FO.creation_time + that.shockwave_duration )
+			{
+				FO.release();
+				return;
+			}
+
+			// we resize the sprite according to current shockwave radius
+			if( FO.active_sprite )
+			{
+				var s = (that.timer.time - FO.creation_time) / that.shockwave_duration;	// 0 at beginning, 1 at end of shockwave
+				var d = FO.near_distance();
+				FO.scale = d / FO.active_sprite.collision_radius;
+				FO.active_sprite.globalAlpha = (1 - s) * that.shockwave_ring_alpha;
+			}
+
+			for( var i in FO.near_objects )
+			{
+				var near_obj = FO.near_objects[i];
+				var foNear = near_obj.FO;
+				// objects which did pop up from an explosion of another object and that
+				// have been created after the shockwave we do not explode.
+				// That is good for e.g. child comets or dangers created from a bigger comet which exploded due to the
+				// shockwave, so that the new ones are not destroyed immediately, too.
+				// This is important because otherwise with just a few mines exploding in a chain, the whole level could
+				// be immediately cleared which is boring.
+				// But this approach is not 100% accurate because e.g. the player could have shot a comet and created
+				// 2 child comets which then the shockwave will also not destroy. But we can live with that.
+				if( !foNear.popped_up_from_explosion ||
+					foNear.creation_time <= FO.creation_time )
+				{
+					// we check objects which have not been checked already before in some previous frame step.
+					// so that they are not retried for exploding while the shockwave flies further away
+					// (e.g. when player prevented being exploded with shield on while shockwave first time passed him)
+					if( FO.shocked_objects.indexOf( foNear ) < 0 )
+					{
+						FO.shocked_objects.push( foNear );
+						if( foNear.explode( FO ) )
+						{
+							if( FO.origin_for_score )
+								FO.origin_for_score.increase_score( foNear.score_on_destroy );
+						}
+						else
+						{
+							// if the colliding object is not explodable (e.g. like a shot), we add the score that we did avoid it
+							if( FO.origin_for_score )
+								FO.origin_for_score.increase_score( foNear.score_on_avoided );
+
+							// if it's a player ship and it is shielded, we give it a bump. (but not when ship is exploding already)
+							// get the direction from the ship to the shockwave object and add ship's acceleration
+							// a bit in the other direction. Also add a bit of rotation.
+							if( foNear.player && foNear.active_mode === FlyingObjectModes.shielded )
+							{
+								var s = (that.timer.time - FO.creation_time) / that.shockwave_duration;	// 0 at beginning, 1 at end of shockwave
+								s = 1 - s;
+								s *= s;
+								var vec = kor.Vec.scale( kor.Vec.normalize( kor.Vec.sub( foNear.absolute_pos, FO.absolute_pos ) ), that.shockwave_max_ship_bump_strength * s );
+								foNear.a_v_velocity = kor.Vec.add( foNear.a_v_velocity, vec );
+								foNear.orientation = (foNear.orientation + (Math.random() - 0.5) * 1.1 + kor.Vec.huge_2PI) % kor.Vec.twoPI;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		this.act_enemy = function( FO )
+		{
+			// slow down
+			// a_v_velocity is in pixels per millisecond
+			FO.a_v_velocity.x *= 1 - that.enemy_slow_down;
+			FO.a_v_velocity.y *= 1 - that.enemy_slow_down;
+
+			FO.keep_near_objects_of_kind( FlyingObjectKinds.Player );
+
+			if( FO.near_objects.length > 0 )
+			{
+				// We got a target to aim on. We hunt it down.
+
+				var foNear = FO.near_objects.pop().FO;
+				var dest_direction = kor.Vec.to_orientation( kor.Vec.sub( foNear.absolute_pos, FO.absolute_pos ) );
+				var offset = dest_direction - FO.orientation;
+				if( offset < -Math.PI ) offset += kor.Vec.twoPI;
+				if( offset >  Math.PI ) offset -= kor.Vec.twoPI;
+				var bMayShoot = offset >= -kor.Vec.twoPI * 0.01 && offset <= kor.Vec.twoPI * 0.01;
+				var rot_speed = that.enemy_rot_speed * that.timer.delta_t;
+				if( offset > rot_speed ) offset = rot_speed;
+				if( offset < -rot_speed ) offset = -rot_speed;
+				FO.orientation = (FO.orientation + offset + kor.Vec.huge_2PI) % kor.Vec.twoPI;
+
+				// check if/when to invoke next shot
+				if( that.timer.time >= FO.time_for_next_shot && bMayShoot )
+				{
+					that.create_Enemy_Shot( FO );
+					FO.time_for_next_shot = that.time_for_next_enemy_shot();
+				}
+
+				var v_accel = kor.Vec.from_orientation( FO.orientation, that.enemy_acceleration );
+				FO.a_v_velocity = kor.Vec.add( FO.a_v_velocity, v_accel );
+			}
+			else
+			{
+				// We do not have anything to aim on. We just fly around.
+
+				var offset = FO.desired_orientation - FO.orientation;
+				if( offset < -Math.PI ) offset += kor.Vec.twoPI;
+				if( offset >  Math.PI ) offset -= kor.Vec.twoPI;
+				var rot_speed = that.enemy_rot_speed_no_target * that.timer.delta_t;
+				if( offset > rot_speed ) offset = rot_speed;
+				if( offset < -rot_speed ) offset = -rot_speed;
+				FO.orientation = (FO.orientation + offset + kor.Vec.huge_2PI) % kor.Vec.twoPI;
+
+				if( that.timer.time >= FO.time_for_next_orientation_change )
+				{
+					FO.desired_orientation = (FO.orientation + (Math.random() - 0.5) * kor.Vec.twoPI * 0.7) % kor.Vec.twoPI;
+					FO.time_for_next_orientation_change = that.time_for_next_enemy_orientation_change();
+				}
+
+				var v_accel = kor.Vec.from_orientation( FO.orientation, that.enemy_acceleration_no_target );
+				FO.a_v_velocity = kor.Vec.add( FO.a_v_velocity, v_accel );
+			}
+
+			var velocity = kor.Vec.length( FO.a_v_velocity );
+			if( velocity > that.enemy_max_speed )
+				FO.a_v_velocity = kor.Vec.scale( FO.a_v_velocity, that.enemy_max_speed / velocity );
+
+			FO.pos = kor.Vec.keep_in_rect( kor.Vec.add( FO.pos, kor.Vec.scale( FO.a_v_velocity, that.timer.delta_t ) ), that.sceneryPainter.surface.display_rect );
+		}
+
+		this.act_flares = function( FO )
+		{
+			FO.active_sprite.select_next_circular();	// every frame another sprite image, regardless of the fps
+		}
+
+		this.act_enemy_shot = function( FO )
+		{
+			// We do not need to detect collisions since this is done by the collided objects (player ship, guard/protector)
+			// which can destroy this shot using explode() because for this shot, explode() is calling release() directly.
+			// That way, also a player's shot can eliminate this enemy shot, as well as an exploding mine can eliminate this enemy shot.
+
+			FO.pos = kor.Vec.add( FO.pos, kor.Vec.scale( FO.a_v_velocity, that.timer.delta_t ) );
+
+			if( !kor.Vec.is_in_rect( FO.pos, that.sceneryPainter.surface.display_rect ) )
+				FO.release();
+		}
+
+		// -- extra taken event handlers ---------------------------------------------------
+
+		// Return true if extra taken, otherwise false.
+		// this = the Extra flying_object
+		// param foPlayer = the player's ship flying_object
+		// param test = if true, such an extra will not be taken. it will just be tested if the player might take it
+
+		this.on_extra_Guard_taken = function( foPlayer, test )
+		{
+			if( foPlayer.guards_count >= 3 ) return false;
+			if( !test )
+				that.create_Guard( foPlayer );
+			return true;
+		}
+
+		this.on_extra_Protector_taken = function( foPlayer, test )
+		{
+			if( foPlayer.protectors_count >= 3 ) return false;
+			if( !test )
+				that.create_Protector( foPlayer );
+			return true;
+		}
+
+		this.on_extra_Weaponry_taken = function( foPlayer, test )
+		{
+			if( !foPlayer.spread_shot )
+			{
+				if( !test ) { ++foPlayer.weaponry_taken_count; foPlayer.spread_shot = true; }
+				return true;
+			}
+
+			if( !foPlayer.laser_shot )
+			{
+				if( !test ) { ++foPlayer.weaponry_taken_count; foPlayer.laser_shot = true; }
+				return true;
+			}
+
+			if( foPlayer.missiles_count < 1 )
+			{
+				if( !test )
+				{
+					++foPlayer.weaponry_taken_count;
+					++foPlayer.missiles_count;
+					foPlayer.missiles_next_shot.push( that.timer.time );	// the new missile may be shot immediately
+				}
+				return true;
+			}
+
+			return false;
+		}
+
+		// -- game timers ------------------------------------------------------------------
+
+		this.initEnemyAppearTimer = function( game_timer )
+		{
+			game_timer.enabled = true;
+			game_timer.elapse_time = that.enemy_appear_delay();		// time delay when the next enemy should appear
+			game_timer.elapse_time += this.timer.time;				// from now on
+			game_timer.timer_fct = this.onEnemyAppearTimer;
+		}
+
+		this.onEnemyAppearTimer = function( e )
+		{
+			that.initEnemyAppearTimer( e.game_timer );	// reactivate
+
+			if( that.game_level >= that.enemy_start_level && that.enemies_count < that.max_enemies_present )
+				that.create_Enemy();
+		}
+
+		this.initMineAppearTimer = function( game_timer )
+		{
+			game_timer.enabled = true;
+			game_timer.elapse_time = that.mine_appear_delay();		// time delay when the next mine should appear
+			game_timer.elapse_time += this.timer.time;				// from now on
+			game_timer.timer_fct = this.onMineAppearTimer;
+		}
+
+		this.onMineAppearTimer = function( e )
+		{
+			that.initMineAppearTimer( e.game_timer );	// reactivate
+
+			if( that.game_level >= that.mine_start_level() )
+				that.create_Mine();
+		}
+	}
+</script>
+
+<script type="text/javascript">
+/*
+==========================================
+
+	The Application
+
+==========================================
+*/
+
+	debugPanel = new DebugPanel;
+
+	var Application = function()
+	{
+		var that = this;
+
+		// main resources
+		this.surface = new kor.Surface("surface", true);	// call this as the absolute first to show to the user if HTML5 canvas is supported on the current browser
+		this.timer;
+		this.mediaRetriever;
+		this.soundFactory;
+		this.sceneryPainter;
+		this.imageLoader;
+		this.keyBoard;
+		this.navigationControls;
+
+		// game objects
+		this.gameSession;				// if set, the currently running game
+		this.localPlayerSettings;
+
+		this.statistics;
+
+		// UI objects
+		this.progressPanel;
+		this.statisticsPanel;
+		this.MainMenu;
+		this.elMainMenuWithTitle;
+		this.playerSettingsPanel;
+		this.optionsCookie;
+		this.playerStatisticsPanels = [];
+
+		this.crazy_fun_mode = false;
+		this.team_mode = false;		// TODO should be put in a settings object
+		this.sounds_on = true;			// TODO should be put in a settings object together with engine statistics on/off. And GameSession.sounds_on has to be adopted, too, then (currently is inited by theApp.sounds_on and updated by OnSoundsOnOff)
+
+		this.preload = function()
+		{
+			this.mediaRetriever = new kor.MediaRetrieverEasy( new kor.MediaLoader );
+			this.imageLoader = new kor.ImageLoader( this.mediaRetriever, "images" );
+			this.soundFactory = new kor.SoundFactory( this.mediaRetriever, "sounds" );
+
+			// preload images
+			{
+				this.imageLoader.load( "background", "StarsMap_2500x1250.jpg", 2500, 1250 );
+
+				for( var src in image_data )
+				{
+					var d = image_data[src];
+					this.imageLoader.load( src, src, d.width, d.height, d.x_hot, d.y_hot, d.collision_radius );
+				}
+			}
+
+			// preload sounds
+			{
+				for( var sndname in sound_data )
+					this.soundFactory.get( sndname );
+			}
+
+			this.mediaRetriever.preload({ onload: this.preload_tick, onfinish: this.preload_finished });
+			this.progressPanel = new ProgressPanel;
+			this.progressPanel.setPercent( 0 );
+		}
+
+		this.preload_tick = function( media, percent )
+		{
+			that.progressPanel.setPercent( percent );
+		}
+
+		this.preload_finished = function()
+		{
+			that.progressPanel.setText("compositing...");
+			// Now call the following asynchroneously so that the change of setText() becomes visible right now.
+			setTimeout( function() {
+				that.init();
+				that.progressPanel.show( false );
+			}, 100 );
+		}
+
+		this.init = function()
+		{
+			// -- first create main resources
+
+			this.sceneryPainter = new kor.SceneryPainter( this.surface, this.imageLoader.get("background") );
+			this.timer = new kor.SystemTimer( 17, this.OnTick, "interval", this.surface.canvas );			// 17ms to be close to 60 fps
+			this.keyBoard = new kor.Keyboard( this.timer );
+			this.keyBoard.delegateDown.add( this.OnKeyDown );
+
+			// -- create game objects
+
+			this.localPlayerSettings = new LocalPlayerSettingsPrepared;
+
+			this.statistics = new Statistics(
+				function()
+				{
+					return {
+						time:					that.timer.time,
+						flying_objects_count:	that.gameSession ? that.gameSession.flying_objects_count : 0,
+						comets_count:			that.gameSession ? that.gameSession.comets_count : 0,
+						enemies_count:			that.gameSession ? that.gameSession.enemies_count : 0,
+						alive_players_count:	that.gameSession ? that.gameSession.players.alive_count : 0,
+						players_count:			that.gameSession ? that.gameSession.players_count : 0
+					};
+				},
+				function()
+				{
+					return {
+						display_width:			that.surface.WIDTH,
+						display_height:			that.surface.HEIGHT
+					};
+				}
+			);
+
+			this.spriteFactories = new PredefinedSpriteFactories( this.imageLoader );
+
+			// -- create UI objects
+
+			this.surface.canvas.onmousedown = function() { if (that.navigationControls.active_mode == "off") that.OnKeyDown({ keyID: kor.Keys.keyEscape }); };
+
+			this.navigationControls = new NavigationControls;
+			this.navigationControls.set_pause_callback( function() { that.OnKeyDown({ keyID: kor.Keys.keyEscape }); } );
+
+			this.statisticsPanel = new StatisticsPanel( this.statistics );
+
+			this.MainMenu = new kor.PanelMenu( document.getElementById("MainMenu"), this.keyBoard );
+			this.MainMenu.delegatesClicked["optCrazyFunModeOnOff"].add( this.OnCrazyFunModeOnOff );
+			this.MainMenu.delegatesClicked["optTeamModeOnOff"].add( this.OnTeamModeOnOff );
+			this.MainMenu.delegatesClicked["optSoundsOnOff"].add( this.OnSoundsOnOff );
+			this.MainMenu.delegatesClicked["optStatisticsOnOff"].add( this.OnStatisticsOnOff );
+			this.MainMenu.delegatesClicked["optSwitchNavigationControls"].add( this.OnSwitchNavigationControls );
+			this.MainMenu.delegatesClicked["menuHighscores"].add( this.OnShowHighscoresPanel );
+			this.MainMenu.delegatesClicked["1pl_settings"].add( this.OnPlayerSettings );
+			this.MainMenu.delegatesClicked["2pl_settings"].add( this.OnPlayerSettings );
+			this.MainMenu.delegatesClicked["3pl_settings"].add( this.OnPlayerSettings );
+			this.MainMenu.delegatesClicked["4pl_settings"].add( this.OnPlayerSettings );
+
+			this.elMainMenuWithTitle = document.getElementById("MainMenuWithTitle");
+
+			window.addEventListener("resize", this.OnWindowResize, false);
+
+			this.MainMenu.delegatesClicked["1pl"].add( this.OnStartGame );
+			this.MainMenu.delegatesClicked["2pl"].add( this.OnStartGame );
+			this.MainMenu.delegatesClicked["3pl"].add( this.OnStartGame );
+			this.MainMenu.delegatesClicked["4pl"].add( this.OnStartGame );
+			this.MainMenu.delegatesClicked["demo"].add( this.OnStartGame );
+			this.MainMenu.delegatesClicked["continue"].add( this.OnGameContinue );
+
+			this.MainMenu.showSection( "MainMenuPaused", false );
+			this.MainMenu.show( true );
+			this.elMainMenuWithTitle.style.display = "block";
+			this.sceneryPainter.draw();
+
+			this.playerSettingsPanel = new PlayerSettingsPanel( this.keyBoard, this.spriteFactories, this.localPlayerSettings.localPlayerDefs );
+			this.playerSettingsPanel.onApply = function( player_index ) {
+				that.playerSettingsPanel.apply( that.gameSession );
+				that.playerStatisticsPanels[player_index].update();
+				that.sceneryPainter.draw();
+				that.MainMenu.show( true );
+			};
+			this.playerSettingsPanel.onCancel = function() {
+				that.playerSettingsPanel.cancel();
+				that.MainMenu.show( true );
+			};
+
+			this.playerStatisticsPanels =
+			[
+				new PlayerStatisticsPanel( "player1_statistics",	false,	false	),
+				new PlayerStatisticsPanel( "player2_statistics",	true,	false	),
+				new PlayerStatisticsPanel( "player3_statistics",	false,	true	),
+				new PlayerStatisticsPanel( "player4_statistics",	true,	true	)
+			];
+
+			this.enterNamePanel = new EnterNamePanel;
+			this.enterNamePanel.onOk = function() { that.EnterNextPlayerName( true ); };
+			this.enterNamePanel.onCancel = function() { that.EnterNextPlayerName( false ); };
+
+			this.highScores = new Highscores;
+			this.highScoresPanel = new HighscoresPanel( this.highScores );
+			this.highScoresPanel.elPanel.onmousedown = function() { that.OnKeyDown({ keyID: kor.Keys.keyEscape }); };
+
+			if (kor.DeviceDetection.isMobile || kor.DeviceDetection.isTablet)
+			{
+				this.navigationControls.activate_mode( "left" );
+				this.UpdateMainMenu();
+			}
+
+			this.optionsCookie = new kor.JCookie("Masterroids_Options");
+			if (this.optionsCookie.value)
+			{
+				try { if (this.optionsCookie.value.crazy_fun_mode != null) this.crazy_fun_mode = this.optionsCookie.value.crazy_fun_mode; } catch( e ) {  }
+				try { if (this.optionsCookie.value.team_mode != null) this.team_mode = this.optionsCookie.value.team_mode; } catch( e ) {  }
+				try { if (this.optionsCookie.value.sounds_on != null) this.sounds_on = this.optionsCookie.value.sounds_on; } catch( e ) {  }
+				try { if (this.optionsCookie.value.navigation_controls_mode != null) this.navigationControls.activate_mode( this.optionsCookie.value.navigation_controls_mode ); } catch( e ) {  }
+				try { if (this.optionsCookie.value.statisticsPanel_on != null) this.statisticsPanel.show( this.optionsCookie.value.statisticsPanel_on ); } catch( e ) {  }
+				this.UpdateMainMenu();
+			}
+			else
+				this.optionsCookie.value = {};
+
+			this.handleWindowResize();
+		}
+
+		this.OnStartGame = function( e )
+		{
+			// first make sure to release an old game session if any
+			// and make a proper cleanup
+			if( that.gameSession )
+				that.gameSession.dispose();
+
+			// players count is first char of the menu id
+			var players_count = e.id === "demo" ?
+				(that.crazy_fun_mode ? 4 : 1) :
+				parseInt( e.id.substr(0, 1) );
+
+			// let's start a game
+			that.MainMenu.show( false );
+			that.elMainMenuWithTitle.style.display = "none";
+			that.highScoresPanel.show( false );
+			that.gameSession = new GameSession(
+				that.localPlayerSettings,
+				that.timer,
+				that.keyBoard,
+				that.navigationControls,
+				that.sceneryPainter,
+				that.spriteFactories,
+				that.soundFactory,
+				that.playerStatisticsPanels,
+				that.crazy_fun_mode
+			);
+			that.gameSession.on_game_over = that.OnGameOver;
+			that.gameSession.start_game( players_count, e.id === "demo" );
+
+			that.statistics.update();
+			that.statisticsPanel.displayStatistics();
+		}
+
+		this.RestartGame = function()
+		{
+			if( !this.gameSession )
+				return;	// do nothing if there was no game running
+
+			var players_count = this.gameSession.players_count;
+			var simulate_players = this.gameSession.simulate_players;
+
+			// release the old game session and make a proper cleanup
+			that.gameSession.dispose();
+
+			// let's start a new game
+			that.MainMenu.show( false );
+			that.elMainMenuWithTitle.style.display = "none";
+			that.highScoresPanel.show( false );
+			that.gameSession = new GameSession(
+				that.localPlayerSettings,
+				that.timer,
+				that.keyBoard,
+				that.navigationControls,
+				that.sceneryPainter,
+				that.spriteFactories,
+				that.soundFactory,
+				that.playerStatisticsPanels,
+				that.crazy_fun_mode
+			);
+			that.gameSession.on_game_over = that.OnGameOver;
+			that.gameSession.start_game( players_count, simulate_players );
+
+			that.statistics.update();
+			that.statisticsPanel.displayStatistics();
+		}
+
+		//! process next frame of the game animation
+		this.OnTick = function( timer )
+		{
+			if( !that.gameSession )
+				return;
+
+			// -- calculate new coordinates, collisions and states
+
+			that.statistics.tick();
+
+			if( that.gameSession )
+				that.gameSession.frame();
+
+			// -- finally draw
+
+			// draw the surface
+			that.sceneryPainter.draw();
+
+			that.statisticsPanel.displayStatistics();
+			that.keyBoard.reset_keys();		// clear key-down events
+		}
+
+		this.OnKeyDown = function( e )
+		{
+			switch( e.keyID )
+			{
+				case kor.Keys.keyEscape :
+				{
+					var menu = that.getActiveTopMenu();
+
+					if (menu == null)
+					{
+						that.MainMenu.showSection( "MainMenuPaused", that.gameSession && !that.gameSession.game_is_over );
+						that.MainMenu.show( true );
+						that.elMainMenuWithTitle.style.display = "block";
+						that.highScoresPanel.show( false );
+
+						if (that.gameSession)
+							that.gameSession.pause();
+					}
+					else
+					if (menu.id === "MainMenu")
+					{
+						// we prevent closing of main menu with Esc key.
+						// The user will have to press Continue explicitely.
+						/*
+						that.OnGameContinue();
+
+						if (!that.gameSession || that.gameSession.game_is_over)
+							that.highScoresPanel.show( true );
+						*/
+					}
+					else
+					if (menu.id == "EnterNamePanel")
+					{
+						that.EnterNextPlayerName( false );
+					}
+					/*
+					else
+					if (menu.id == "PlayerSettingsPanel")		// is done in playerSettingsPanel.onApply
+					{
+						menu.apply( that.gameSession );
+						// missing here: update PlayerStatisticsPanel for the edited player index
+						that.sceneryPainter.draw();
+						that.MainMenu.show( true );
+					}
+					*/
+					break;
+				}
+			}
+		}
+
+		this.OnGameContinue = function( e )
+		{
+			that.MainMenu.show( false );
+			that.elMainMenuWithTitle.style.display = "none";
+
+			if (that.gameSession && (that.gameSession.paused || that.gameSession.game_is_over))
+			{
+				that.highScoresPanel.show( false );
+				that.gameSession.continue();
+			}
+		}
+
+		this.OnShowHighscoresPanel = function( e )
+		{
+			var bShow = !that.highScoresPanel.is_visible();
+			that.highScoresPanel.show( bShow );
+			that.MainMenu.show( false );
+			that.elMainMenuWithTitle.style.display = "none";
+		}
+
+		this.UpdateMainMenu = function()
+		{
+			this.MainMenu.menu_items_by_menu_id["optCrazyFunModeOnOff"].innerHTML = this.crazy_fun_mode ? "on" : "off";
+			this.MainMenu.menu_items_by_menu_id["optTeamModeOnOff"].innerHTML = this.team_mode ? "on" : "off";
+			this.MainMenu.menu_items_by_menu_id["optSoundsOnOff"].innerHTML = this.sounds_on ? "on" : "off";
+			this.MainMenu.menu_items_by_menu_id["optSwitchNavigationControls"].innerHTML = this.navigationControls.active_mode;
+			this.MainMenu.menu_items_by_menu_id["optStatisticsOnOff"].innerHTML = this.statisticsPanel.is_visible() ? "on" : "off";
+		}
+
+		this.OnCrazyFunModeOnOff = function( e )
+		{
+			that.crazy_fun_mode = !that.crazy_fun_mode;
+			// we don't update a currently running game session. The mode selection will only be used when a new game is started.
+			e.elItem.innerHTML = that.crazy_fun_mode ? "on" : "off";
+
+			that.optionsCookie.value.crazy_fun_mode = that.crazy_fun_mode;
+			that.optionsCookie.store();
+		}
+
+		this.OnTeamModeOnOff = function( e )
+		{
+			that.team_mode = !that.team_mode;
+			if( that.gameSession )
+				that.gameSession.team_mode = that.team_mode;
+			e.elItem.innerHTML = that.team_mode ? "on" : "off";
+
+			that.optionsCookie.value.team_mode = that.team_mode;
+			that.optionsCookie.store();
+		}
+
+		this.OnSoundsOnOff = function( e )
+		{
+			that.sounds_on = !that.sounds_on;
+			if( that.gameSession )
+				that.gameSession.sounds_on = that.sounds_on;
+			e.elItem.innerHTML = that.sounds_on ? "on" : "off";
+
+			that.optionsCookie.value.sounds_on = that.sounds_on;
+			that.optionsCookie.store();
+		}
+
+		this.OnStatisticsOnOff = function( e )
+		{
+			var bOn = !that.statisticsPanel.is_visible();
+			that.statisticsPanel.show( bOn );
+			e.elItem.innerHTML = bOn ? "on" : "off";
+
+			that.optionsCookie.value.statisticsPanel_on = bOn;
+			that.optionsCookie.store();
+		}
+
+		this.OnSwitchNavigationControls = function( e )
+		{
+			var index = that.navigationControls.modes.indexOf( that.navigationControls.active_mode );
+			++index;
+			index %= that.navigationControls.modes.length;
+			that.navigationControls.activate_mode( that.navigationControls.modes[index] );
+			e.elItem.innerHTML = that.navigationControls.active_mode;
+
+			that.optionsCookie.value.navigation_controls_mode = that.navigationControls.active_mode;
+			that.optionsCookie.store();
+		}
+
+		this.OnPlayerSettings = function( e )
+		{
+			var player_index = parseInt( e.id.substr(0, 1) ) - 1;
+			that.playerSettingsPanel.apply( that.gameSession );		// close an old one if there is an old one open
+			that.playerSettingsPanel.open( player_index );
+			that.sceneryPainter.draw();
+			that.MainMenu.show( false );
+		}
+
+		this.OnGameOver = function()
+		{
+			// let user(s) enter name and save their player scores in cookies (in case of local game)
+			that.EnterNextPlayerName();
+		}
+
+		/*!
+			@param store_current
+			- true		store current entered name in highscores
+			- false		do not store it
+			- null		no current one. so open the EnterNamePanel for the first player
+		*/
+		this.EnterNextPlayerName = function( store_current )
+		{
+			if (!this.gameSession || !this.gameSession.game_is_over)
+				return;
+
+			if (this.enterNamePanel.is_visible() && store_current)
+			{
+				var name_and_score = this.enterNamePanel.get();
+				if (name_and_score.name && name_and_score.name.length > 0 && this.highScores.can_add_score( name_and_score.score ))
+				{
+					this.highScores.set_score( name_and_score.name, name_and_score.score );
+					this.highScoresPanel.update();
+				}
+			}
+
+			var player_index = 0;
+			if (store_current != null)
+				player_index = this.enterNamePanel.player_index + 1;
+
+			var player = null;
+			while (!player && player_index < this.gameSession.players_count)
+			{
+				player = this.gameSession.players.players[player_index];
+				if (player) player = player.player;
+				if (player && !this.highScores.can_add_score( player.score )) player = null;
+				if (!player) ++player_index;
+			}
+
+			if (player_index >= this.gameSession.players_count || this.gameSession.simulate_players || !player)
+			{
+				// last player name entered. close panel
+				this.enterNamePanel.show( false );
+				this.highScoresPanel.show( true );
+				return;
+			}
+
+			this.enterNamePanel.init( player, player_index );
+			this.enterNamePanel.show( true );
+		}
+
+		this.OnWindowResize = function( e )
+		{
+			if( typeof e === "undefined" )
+				e = window.event;
+
+			that.handleWindowResize();
+		}
+
+		this.handleWindowResize = function()
+		{
+			this.surface.setDocumentSize(true);
+			this.statistics.update();		// update statistics after surface resizing because they retrieve from the surface
+
+			// draw the surface
+			this.sceneryPainter.draw();
+
+			this.statisticsPanel.displayStatistics();
+			this.navigationControls.update();
+		}
+
+		this.getActiveTopMenu = function()
+		{
+			if (this.enterNamePanel.is_visible())
+				return this.enterNamePanel;
+
+			if (this.playerSettingsPanel.is_visible())
+				return this.playerSettingsPanel;
+
+			if (this.MainMenu.is_visible())
+				return this.MainMenu;
+
+			return null;
+		}
+	}
+</script>
+
+<script type="text/javascript">
+/*
+==========================================
+
+	main() entry point
+
+==========================================
+*/
+
+	var theApp;
+
+	//! main() entry point
+	window.onload = function()
+	{
+		theApp = new Application;
+		theApp.preload();
+	}
+
+	function onNowhereMouseDown()
+	{
+		theApp.surface.canvas.onmousedown();
+	}
+</script>
+</body>
+</html>
