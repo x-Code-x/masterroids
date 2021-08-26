@@ -8,6 +8,8 @@ License:
 3-clause BSD license
 See accompanying license file.
 
+Some sounds and some images like the starsmap and waveflare are not by me. Thanks go to whoever made those.
+
 
 
 Masterroids-JS-CANVAS is a Javascript based implementation of my very old
