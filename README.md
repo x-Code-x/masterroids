@@ -1,6 +1,8 @@
 Masterroids-JS-CANVAS
 version 1.0
 
+[a relative link](masterroids.html)
+
 Copyright (c) 2009-2021, Roman Komary
 All rights reserved.
 
