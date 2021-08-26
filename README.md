@@ -6,7 +6,7 @@ All rights reserved.
 
 License:
 3-clause BSD license
-See accompanying license.txt file.
+See accompanying license file.
 
 
 
