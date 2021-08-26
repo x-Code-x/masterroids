@@ -1,0 +1,15 @@
+var image_data;
+if (!image_data) image_data = []; 
+image_data["t_blue_flare.png"] = { width: 41, height: 41, x_hot: 20, y_hot: 20, collision_radius: 0 };
+image_data["t_flare_0.png"] = { width: 41, height: 41, x_hot: 20, y_hot: 20, collision_radius: 0 };
+image_data["t_flare_1.png"] = { width: 41, height: 41, x_hot: 20, y_hot: 20, collision_radius: 0 };
+image_data["t_flare_2.png"] = { width: 41, height: 41, x_hot: 20, y_hot: 20, collision_radius: 0 };
+image_data["t_flare_3.png"] = { width: 41, height: 41, x_hot: 20, y_hot: 20, collision_radius: 0 };
+image_data["t_flare_4.png"] = { width: 41, height: 41, x_hot: 20, y_hot: 20, collision_radius: 0 };
+image_data["t_flare_5.png"] = { width: 41, height: 41, x_hot: 20, y_hot: 20, collision_radius: 0 };
+image_data["t_flare_6.png"] = { width: 41, height: 41, x_hot: 20, y_hot: 20, collision_radius: 0 };
+image_data["t_flare_7.png"] = { width: 41, height: 41, x_hot: 20, y_hot: 20, collision_radius: 0 };
+image_data["t_flare_8.png"] = { width: 41, height: 41, x_hot: 20, y_hot: 20, collision_radius: 0 };
+image_data["t_flare_9.png"] = { width: 41, height: 41, x_hot: 20, y_hot: 20, collision_radius: 0 };
+image_data["waveflare.png"] = { width: 231, height: 231, x_hot: 115, y_hot: 115, collision_radius: 90 };
+image_data["little_cloud.png"] = { width: 32, height: 32, x_hot: 16, y_hot: 16, collision_radius: 0 };
