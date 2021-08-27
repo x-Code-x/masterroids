@@ -3050,6 +3050,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			FO.weaponry_taken_count = 0;
 			FO.spread_shot = false;	// true if a spread shot extra had been picked up. then the ship shoots in multiple directions at once.
 			FO.spread_shot2 = false;	// a heavier spread shot
+			FO.back_shot = false;		// shot backwards
+			FO.side_shot = false;		// shot towards left and right sides
 			FO.laser_shot = false;		// true if a laser extra had been picked up. then the shot is a laser.
 			FO.missiles_count = 0;		// how many missiles being launched on one shot
 			FO.missiles_next_shot = [];	// and for each of the missiles, when the next one may be shot
@@ -3068,6 +3070,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					this.weaponry_taken_count = 0;
 					this.spread_shot = false;
 					this.spread_shot2 = false;
+					this.back_shot = false;
+					this.side_shot = false;
 					this.laser_shot = false;
 					this.missiles_count = 0;
 					this.missiles_next_shot = [];
@@ -3571,14 +3575,22 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				this.create_Shot2( FO, -30 * kor.Vec.twoPI / 360 );
 				this.create_Shot1( FO, 45 * kor.Vec.twoPI / 360 );
 				this.create_Shot1( FO, -45 * kor.Vec.twoPI / 360 );
-				this.create_Shot1( FO, 90 * kor.Vec.twoPI / 360, 5 );
-				this.create_Shot1( FO, -90 * kor.Vec.twoPI / 360, 5 );
-				this.create_Shot1( FO, 180 * kor.Vec.twoPI / 360, 26 );
 			}
 			else if ( FO.spread_shot )
 			{
 				this.create_Shot1( FO, 30 * kor.Vec.twoPI / 360 );
 				this.create_Shot1( FO, -30 * kor.Vec.twoPI / 360 );
+			}
+
+			if ( FO.back_shot )
+			{
+				this.create_Shot1( FO, 180 * kor.Vec.twoPI / 360, 26 );
+			}
+
+			if ( FO.side_shot )
+			{
+				this.create_Shot1( FO, 90 * kor.Vec.twoPI / 360, 5 );
+				this.create_Shot1( FO, -90 * kor.Vec.twoPI / 360, 5 );
 			}
 
 			for( var i = 0 ; i < FO.missiles_count ; ++i )
@@ -4522,6 +4534,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			if ( !foPlayer.spread_shot2 )
 			{
 				if( !test ) { ++foPlayer.weaponry_taken_count; foPlayer.spread_shot2 = true; }
+				return true;
+			}
+
+			if ( !foPlayer.back_shot )
+			{
+				if( !test ) { ++foPlayer.weaponry_taken_count; foPlayer.back_shot = true; }
+				return true;
+			}
+
+			if ( !foPlayer.side_shot )
+			{
+				if( !test ) { ++foPlayer.weaponry_taken_count; foPlayer.side_shot = true; }
 				return true;
 			}
 
