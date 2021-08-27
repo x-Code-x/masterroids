@@ -1935,7 +1935,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				{
 					var el = this.map[name];
 					(function( nam ) {
+						el.ontouchstart	=
 						el.onmousedown	= function() { fnDown( nam ); };
+						el.ontouchend	=
 						el.onmouseup	= function() { fnUp( nam ); };
 					})( name );
 				}
