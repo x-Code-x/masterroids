@@ -530,8 +530,26 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</table>
 		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
 			<tr>
+				<td>difficulty:</td>
+				<td width='50' class='menu-item-unfocused' data-menu-item-id='optDifficulty'>hard</td>
+			</tr>
+		</table>
+		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
+			<tr>
+				<td>invincible:</td>
+				<td width='50' class='menu-item-unfocused' data-menu-item-id='optInvincible'>off</td>
+			</tr>
+		</table>
+		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
+			<tr>
 				<td>crazy fun mode:</td>
 				<td width='50' class='menu-item-unfocused' data-menu-item-id='optCrazyFunModeOnOff'>off</td>
+			</tr>
+		</table>
+		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
+			<tr>
+				<td>extras magnet mode:</td>
+				<td width='50' class='menu-item-unfocused' data-menu-item-id='optMagnetMode'>off</td>
 			</tr>
 		</table>
 		<div class='menu_sep'></div>
@@ -1938,9 +1956,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		top: 0px;
 		width: 0px;
 		height: 0px;
-		opacity: 0.25;
-		filter: alpha(opacity=25);
+		opacity: 0.10;
+		filter: alpha(opacity=10);
 	}
+
+	.navigation_controls .arrows { /*border: 1px solid white;*/ padding: 2em; }
 
 	#navigation_controls_front { z-index: 11; }
 	#navigation_controls_back { z-index: 9; }
@@ -1957,10 +1977,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	<img id="navigationcontrol_Pause" src="images/button_pause.png" />
 </div>
 <div id="navigation_controls_back" class="navigation_controls" style="display: none">
-	<img id="navigationcontrol_Left" src="images/cursor_arrow_left.png" />
-	<img id="navigationcontrol_Right" src="images/cursor_arrow_right.png" />
-	<img id="navigationcontrol_Up" src="images/cursor_arrow_top.png" />
-	<img id="navigationcontrol_Down" src="images/cursor_arrow_bottom.png" />
+	<img id="navigationcontrol_Left" src="images/cursor_arrow_left.png" class="arrows" />
+	<img id="navigationcontrol_Right" src="images/cursor_arrow_right.png" class="arrows" />
+	<img id="navigationcontrol_Up" src="images/cursor_arrow_top.png" class="arrows" />
+	<img id="navigationcontrol_Down" src="images/cursor_arrow_bottom.png" class="arrows" />
 	<img id="navigationcontrol_Shot" src="images/button_shot.png" />
 	<img id="navigationcontrol_Shield" src="images/button_shield.png" />
 </div>
@@ -2306,7 +2326,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 						spriteFactories,
 						soundFactory,
 						playerStatisticsPanels,
-						crazy_fun_mode
+						difficulty,
+						invincible,
+						crazy_fun_mode,
+						magnet_mode
 					   )
 	{
 		var that = this;
@@ -2327,7 +2350,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.soundFactory = soundFactory;
 		this.playerStatisticsPanels = playerStatisticsPanels;
 		this.simulate_players = false;
+		this.difficulty = difficulty;
+		this.invincible = invincible;
 		this.crazy_fun_mode = crazy_fun_mode;
+		this.magnet_mode = magnet_mode;
 		this.player_flying_objects = [];		//!< the kor.flying_object per player index
 
 		this.on_game_over = null;				//!< callback function to be called when game ended (all players's lifes gone)
@@ -2715,17 +2741,22 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 		// first parameters/constants for level start
 
+		this.player_acceleration = function() { return this.difficulty == "easy" ? 0.00025 : 0.0005 };
+
 		this.level_num_comets = function() { return 4 + Math.round( (this.game_level - 1) * 0.2 + (this.players_count - 1) ); };	// number of initial comets at level start
-		this.green_extras_start_level = function() { return this.crazy_fun_mode ? 1 : 8; };
+		this.green_extras_start_level = function() { return this.crazy_fun_mode ? 1 : (this.difficulty == "easy" ? 3 : 8); };
 		this.green_extras_count_in_level = function() { return this.crazy_fun_mode ? 10 * this.players_count : this.players_count; };
-		this.blue_extras_start_level = function() { return this.crazy_fun_mode ? 1 : 4; };
+		this.blue_extras_start_level = function() { return this.crazy_fun_mode ? 1 : (this.difficulty == "easy" ? 2 : 4); };
 		this.blue_extras_count_in_level = function() { return this.crazy_fun_mode ? 10 * this.players_count : this.players_count; };
-		this.red_extras_start_level = function() { return this.crazy_fun_mode ? 1 : 2; };
+		this.red_extras_start_level = function() { return this.crazy_fun_mode || (this.difficulty == "easy") ? 1 : 2; };
 		this.red_extras_count_in_level = function()
 		{
-			return this.crazy_fun_mode ?
-				10 * this.players_count :
-				this.players_count * Math.floor( Math.min( (this.game_level - 2) * 0.5 + 1, 2 ) );
+			if ( this.crazy_fun_mode )
+				return 10 * this.players_count;
+			var amount = this.players_count * Math.floor( Math.min( (this.game_level - 2) * 0.5 + 1, 2 ) );
+			if ( this.difficulty == "easy" )
+				amount += this.players_count;
+			return amount;
 		};
 		this.dangers_start_level = function() { return this.crazy_fun_mode ? 1 : 2; };
 		this.dangers_count_in_level = function()
@@ -2763,7 +2794,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.computer_player_react_on_any_shockwave_distance_sqr = function() { var d = this.shockwave_final_distance() * 0.95; return d * d; }
 		this.computer_player_shockwave_reaction_delay = 100;	// delay [ms] when the player can activate the shield when a mine started exploding, simulating a human-like reaction delay
 		this.mine_start_level = function() { return this.crazy_fun_mode ? 1 : 2; }
-		this.mine_appear_delay = function() { return 15000 * Math.random() + 20000; }	// time delay when the next mine should appear
+		this.mine_appear_delay = function() { return 15000 * Math.random() + (this.difficulty == "easy" ? 60 * 1000 : 20000); }	// time delay when the next mine should appear
 		this.mine_max_speed_in_level = function() { return 0.03 + this.game_level * /*0.006*/ 0.001; };
 		this.mine_shockwave_shake_strength = 20;	// shockwave shake strength start in pixels when *one* mine explodes
 		this.shockwave_final_distance = function() { return 0.7 * this.display_short(); }	// final (max) distance in which a shockwave also takes all other objects with it into nirvana
@@ -2772,9 +2803,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.shockwave_ring_alpha = 0.3;
 		this.shockwave_max_ship_bump_strength = 0.8;
 		this.extra_anim_speed = 0.0007;
-		this.extra_stay_delay = 10 * 1000;		// how long (in millisec) an extra shall exist before it disappears
+		this.extra_stay_delay = function() { return this.difficulty == "easy" ? 3 * 60 * 1000 : 10 * 1000 };	// how long (in millisec) an extra shall exist before it disappears
 		this.extra_slow_down = 0.006;
-		this.extra_initial_speed = 0.05;
+		this.extra_speed = { initial: 0.05, rot: 0.001, max: 0.1, acceleration: 0.001 };	// initial is always used. rot, max and acceleration is used only for magnet_mode.
+		this.extra_detect_distance_scale = 3;		// distance factor for shorter display length in which a extra can detect a player ship to target on.
 		this.missile_near_object_detect_distance_scale = 0.7;	// how far to detect near objects to aim on. multiples of shorter display length
 		this.missile_rot_speed = 0.007;
 		this.missile_max_speed = 0.75;
@@ -2786,8 +2818,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.missile_launch_delay = 750;		// delay in millisec between 2 missile launches (of one taken missile extra)
 		this.danger_anim_speed = 0.0006;
 		this.danger_slow_down = 0.02;
-		this.danger_speed_max = { initial: 0.2,  rot: 0.005, max: 0.3, acceleration: 0.01 };
-		this.danger_speed_min = { initial: 0.12, rot: 0.002, max: 0.2, acceleration: 0.003 };
+		this.danger_speed_max = this.difficulty == "easy" ?
+								{ initial: 0.15, rot: 0.003, max: 0.22, acceleration: 0.005 } :
+								{ initial: 0.2,  rot: 0.005, max: 0.3,  acceleration: 0.01 };
+		this.danger_speed_min = { initial: 0.12, rot: 0.002, max: 0.2,  acceleration: 0.003 };
 		this.danger_detect_distance_scale = 1;		// distance factor for shorter display length in which a danger can detect a player ship to target on.
 		this.enemy_detect_distance_scale = 0.75;	// distance factor for longer display length in which an enemy can detect a player ship to target on.
 		this.enemy_rot_speed = 0.002;
@@ -2798,19 +2832,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.enemy_max_speed = 0.13;
 		this.enemy_start_speed = this.enemy_max_speed * 0.2;
 		this.enemy_start_level = 3;
-		this.enemy_appear_delay = function() { return 10000 * Math.random() + 15000; }	// time delay when the next enemy should appear
-		this.time_for_next_enemy_shot = function() { return this.timer.time + 500 * Math.random() + 200 + 100 * Math.max( 30 - this.game_level, 0 ); }
-		this.time_for_next_enemy_orientation_change = function() { return this.timer.time + 5000 * Math.random() + 5000; }
-		this.max_enemies_present = 20;
+		this.enemy_appear_delay = function() { return 10000 * Math.random() + (this.difficulty == "easy" ? 2 * 60 * 1000 : 15000); }	// time delay when the next enemy should appear
+		this.time_for_next_enemy_shot = function() { return this.timer.time + 500 * Math.random() + (this.difficulty == "easy" ? 5000 : 200) + 100 * Math.max( 30 - this.game_level, 0 ); }
+		this.time_for_next_enemy_orientation_change = function() { return this.timer.time + 5000 * Math.random() + (this.difficulty == "easy" ? 10000 : 5000); }
+		this.max_enemies_present = function() { return (this.difficulty == "easy" ? 1 : 20); };
 		this.missile_smoke_trail_step_sqr = 10 * 10;	// square of pixel distance between 2 smoke clouds
 		this.missile_smoke_trail_max_rotation = 0.009;
 		if( this.crazy_fun_mode )
 		{
-			this.mine_appear_delay = function() { return 5000 * Math.random() + 4000; }
+			this.mine_appear_delay = function() { return 5000 * Math.random() + (this.difficulty == "easy" ? 40 * 1000 : 4000); }
 			this.missile_launch_delay = 0;
 			this.enemy_start_level = 1;
-			this.enemy_appear_delay = function() { return 3000 * Math.random() + 2000; }
-			this.time_for_next_enemy_shot = function() { return this.timer.time + 500 * Math.random() + 100; }
+			this.enemy_appear_delay = function() { return 3000 * Math.random() + (this.difficulty == "easy" ? 30 * 1000 : 2000); }
+			this.time_for_next_enemy_shot = function() { return this.timer.time + 500 * Math.random() + (this.difficulty == "easy" ? 2000 : 100); }
 		}
 
 		this.comets_count = 0;					//!< current number of comets flying around
@@ -2930,7 +2964,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			FO.player = player;
 			FO.children = new kor.ordered_dictionary();	// a player ship can have child objects attached (guards, protectors etc.)
 			//FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( ship_factory, this.act_player_ship, true, null, null, true ) );	// set invulnerability for normal mode just for testing
-			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( ship_factory, this.act_player_ship, true ) );
+			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( ship_factory, this.act_player_ship, true, null, null, this.invincible ) );
 			FO.set_sprite( FlyingObjectModes.shielded, new kor.flying_object_mode( shield_factory, this.act_player_shielded, true, this.snd_shield_on, this.snd_shield_off, true ) );
 			// Remark out the adding of k_mode_explosion sprites. That way, the ship cannot explode and the player has an indestructible life cheat.
 			FO.set_sprite( FlyingObjectModes.explosion, new kor.flying_object_mode( this.spriteFactories.Explosion_A_factory, this.act_explode_player_ship, false, this.snd_destroy ) );
@@ -3188,14 +3222,27 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.create_Extra = function( sprite_factory, x, y, popped_up_from_explosion, extra_taken_fct, extra_taken_sound )
 		{
 			var FO = new kor.flying_object( this, FlyingObjectKinds.Extra, true );
+
+			FO.extra_initial_speed = this.extra_speed.initial;
+			FO.extra_rot_speed = this.extra_speed.rot;
+			FO.extra_max_speed = this.extra_speed.max;
+			FO.extra_acceleration = this.extra_speed.acceleration;
+
 			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( sprite_factory, this.act_extra, false, this.snd_new_extra ) );
 			FO.pos.x = x;
 			FO.pos.y = y;
 			FO.popped_up_from_explosion = popped_up_from_explosion;
 			FO.set_active_sprite( FlyingObjectModes.normal, true );
-			FO.a_v_velocity = kor.Vec.from_orientation( Math.random() * kor.Vec.twoPI, this.extra_initial_speed );
+
+			if ( this.magnet_mode )
+			{
+				FO.near_objects = [];			// we want to get near_objects to aim onto the nearest player ship
+				FO.near_distance_sqr = function() { var d = that.extra_detect_distance_scale * that.display_mean_length(); return d * d; };
+			}
+
+			FO.a_v_velocity = kor.Vec.from_orientation( Math.random() * kor.Vec.twoPI, FO.extra_initial_speed );
 			FO.a_start_time = this.timer.time;
-			FO.a_end_time = this.timer.time + this.extra_stay_delay;
+			FO.a_end_time = this.timer.time + this.extra_stay_delay();
 			FO.calc_absolute();
 			FO.skip_collisions = true;
 			FO.score_on_taken = 100;		// score increase value when the player takes the extra
@@ -3379,6 +3426,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.object_kinds_for_team_mode = [FlyingObjectKinds.Player, FlyingObjectKinds.Shot, FlyingObjectKinds.Protect];	// the object_kind's to ignore for collision when team mode is on.
 
 		this.kinds_for_extras_collision = [SpriteKinds.playership, SpriteKinds.playershield];	// the sprite kinds that may collide with and pick up an extra.
+		this.kinds_for_extras_target = [SpriteKinds.playership, SpriteKinds.playershield];	// the sprite kinds that may be targets for an extra when this feature is enabled.
 		this.kinds_for_dangers_target = [SpriteKinds.playership, SpriteKinds.playershield];	// the sprite kinds that may be targets for the danger object.
 		// Note: If you want to make a danger object more intelligent in the way that it is capable of detecting
 		// if a target ship is shielded so that it does not aim on it anymore but looks for another ship
@@ -3417,7 +3465,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 				if( inputs.forewd.pressed )
 				{
-					var v_accel = kor.Vec.from_orientation( FO.orientation, 0.0005 * this.timer.delta_t );
+					var v_accel = kor.Vec.from_orientation( FO.orientation, this.player_acceleration() * this.timer.delta_t );
 					FO.a_v_velocity = kor.Vec.add( FO.a_v_velocity, v_accel );
 				}
 
@@ -4072,10 +4120,37 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				return;
 			}
 
+			// We get the nearest player ship to aim on.
+			// Notice, the following getter will always return null when FO.near_objects is not initialized as an empty array.
+			var foNear = FO.get_nearest_object_of_sprite_kinds( that.kinds_for_extras_target );
+			if( foNear )
+			{
+				var dest_direction = kor.Vec.to_orientation( kor.Vec.sub( foNear.absolute_pos, FO.absolute_pos ) );
+				var offset = dest_direction - FO.orientation;
+				if( offset < -Math.PI ) offset += kor.Vec.twoPI;
+				if( offset >  Math.PI ) offset -= kor.Vec.twoPI;
+				if( FO.foAimed == null )	// if we did not have any aimed object before, we allow jumping the orientation immediately towards the new aim
+				{
+					var rot_speed = FO.extra_rot_speed * that.timer.delta_t;
+					if( offset > rot_speed ) offset = rot_speed;
+					if( offset < -rot_speed ) offset = -rot_speed;
+				}
+				FO.orientation = (FO.orientation + offset + kor.Vec.huge_2PI) % kor.Vec.twoPI;
+			}
+
+			FO.foAimed = foNear;
+
 			// slow down
 			// a_v_velocity is in pixels per millisecond
 			FO.a_v_velocity.x *= 1 - that.extra_slow_down;
 			FO.a_v_velocity.y *= 1 - that.extra_slow_down;
+
+			if( foNear &&
+				kor.Vec.length( FO.a_v_velocity ) < FO.extra_max_speed )
+			{
+				var v_accel = kor.Vec.from_orientation( FO.orientation, FO.extra_acceleration );
+				FO.a_v_velocity = kor.Vec.add( FO.a_v_velocity, v_accel );
+			}
 
 			FO.pos = kor.Vec.keep_in_rect( kor.Vec.add( FO.pos, kor.Vec.scale( FO.a_v_velocity, that.timer.delta_t ) ), that.sceneryPainter.surface.display_rect );
 		}
@@ -4354,7 +4429,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		{
 			that.initEnemyAppearTimer( e.game_timer );	// reactivate
 
-			if( that.game_level >= that.enemy_start_level && that.enemies_count < that.max_enemies_present )
+			if( that.game_level >= that.enemy_start_level && that.enemies_count < that.max_enemies_present() )
 				that.create_Enemy();
 		}
 
@@ -4416,7 +4491,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.optionsCookie;
 		this.playerStatisticsPanels = [];
 
+		this.difficulty = "hard";
+		this.invincible = false;
 		this.crazy_fun_mode = false;
+		this.magnet_mode = false;
 		this.team_mode = false;		// TODO should be put in a settings object
 		this.sounds_on = true;			// TODO should be put in a settings object together with engine statistics on/off. And GameSession.sounds_on has to be adopted, too, then (currently is inited by theApp.sounds_on and updated by OnSoundsOnOff)
 
@@ -4501,6 +4579,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 			// -- create UI objects
 
+			this.surface.canvas.ontouchstart =
 			this.surface.canvas.onmousedown = function() { if (that.navigationControls.active_mode == "off") that.OnKeyDown({ keyID: kor.Keys.keyEscape }); };
 
 			this.navigationControls = new NavigationControls;
@@ -4509,7 +4588,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			this.statisticsPanel = new StatisticsPanel( this.statistics );
 
 			this.MainMenu = new kor.PanelMenu( document.getElementById("MainMenu"), this.keyBoard );
+			this.MainMenu.delegatesClicked["optDifficulty"].add( this.OnDifficulty );
+			this.MainMenu.delegatesClicked["optInvincible"].add( this.OnInvincible );
 			this.MainMenu.delegatesClicked["optCrazyFunModeOnOff"].add( this.OnCrazyFunModeOnOff );
+			this.MainMenu.delegatesClicked["optMagnetMode"].add( this.OnMagnetMode );
 			this.MainMenu.delegatesClicked["optTeamModeOnOff"].add( this.OnTeamModeOnOff );
 			this.MainMenu.delegatesClicked["optSoundsOnOff"].add( this.OnSoundsOnOff );
 			this.MainMenu.delegatesClicked["optStatisticsOnOff"].add( this.OnStatisticsOnOff );
@@ -4573,7 +4655,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			this.optionsCookie = new kor.JCookie("Masterroids_Options");
 			if (this.optionsCookie.value)
 			{
+				try { if (this.optionsCookie.value.difficulty != null) this.difficulty = this.optionsCookie.value.difficulty; } catch( e ) {  }
+				try { if (this.optionsCookie.value.invincible != null) this.invincible = this.optionsCookie.value.invincible; } catch( e ) {  }
 				try { if (this.optionsCookie.value.crazy_fun_mode != null) this.crazy_fun_mode = this.optionsCookie.value.crazy_fun_mode; } catch( e ) {  }
+				try { if (this.optionsCookie.value.magnet_mode != null) this.magnet_mode = this.optionsCookie.value.magnet_mode; } catch( e ) {  }
 				try { if (this.optionsCookie.value.team_mode != null) this.team_mode = this.optionsCookie.value.team_mode; } catch( e ) {  }
 				try { if (this.optionsCookie.value.sounds_on != null) this.sounds_on = this.optionsCookie.value.sounds_on; } catch( e ) {  }
 				try { if (this.optionsCookie.value.navigation_controls_mode != null) this.navigationControls.activate_mode( this.optionsCookie.value.navigation_controls_mode ); } catch( e ) {  }
@@ -4611,7 +4696,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				that.spriteFactories,
 				that.soundFactory,
 				that.playerStatisticsPanels,
-				that.crazy_fun_mode
+				that.difficulty,
+				that.invincible,
+				that.crazy_fun_mode,
+				that.magnet_mode
 			);
 			that.gameSession.on_game_over = that.OnGameOver;
 			that.gameSession.start_game( players_count, e.id === "demo" );
@@ -4644,7 +4732,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				that.spriteFactories,
 				that.soundFactory,
 				that.playerStatisticsPanels,
-				that.crazy_fun_mode
+				that.difficulty,
+				that.invincible,
+				that.crazy_fun_mode,
+				that.magnet_mode
 			);
 			that.gameSession.on_game_over = that.OnGameOver;
 			that.gameSession.start_game( players_count, simulate_players );
@@ -4747,11 +4838,34 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 		this.UpdateMainMenu = function()
 		{
+			this.MainMenu.menu_items_by_menu_id["optDifficulty"].innerHTML = this.difficulty;
+			this.MainMenu.menu_items_by_menu_id["optInvincible"].innerHTML = this.invincible ? "on" : "off";
 			this.MainMenu.menu_items_by_menu_id["optCrazyFunModeOnOff"].innerHTML = this.crazy_fun_mode ? "on" : "off";
+			this.MainMenu.menu_items_by_menu_id["optMagnetMode"].innerHTML = this.magnet_mode ? "on" : "off";
 			this.MainMenu.menu_items_by_menu_id["optTeamModeOnOff"].innerHTML = this.team_mode ? "on" : "off";
 			this.MainMenu.menu_items_by_menu_id["optSoundsOnOff"].innerHTML = this.sounds_on ? "on" : "off";
 			this.MainMenu.menu_items_by_menu_id["optSwitchNavigationControls"].innerHTML = this.navigationControls.active_mode;
 			this.MainMenu.menu_items_by_menu_id["optStatisticsOnOff"].innerHTML = this.statisticsPanel.is_visible() ? "on" : "off";
+		}
+
+		this.OnDifficulty = function( e )
+		{
+			that.difficulty = that.difficulty == "easy" ? "hard" : "easy";
+			// we don't update a currently running game session. The mode selection will only be used when a new game is started.
+			e.elItem.innerHTML = that.difficulty;
+
+			that.optionsCookie.value.difficulty = that.difficulty;
+			that.optionsCookie.store();
+		}
+
+		this.OnInvincible = function( e )
+		{
+			that.invincible = !that.invincible;
+			// we don't update a currently running game session. The mode selection will only be used when a new game is started.
+			e.elItem.innerHTML = that.invincible ? "on" : "off";
+
+			that.optionsCookie.value.invincible = that.invincible;
+			that.optionsCookie.store();
 		}
 
 		this.OnCrazyFunModeOnOff = function( e )
@@ -4761,6 +4875,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			e.elItem.innerHTML = that.crazy_fun_mode ? "on" : "off";
 
 			that.optionsCookie.value.crazy_fun_mode = that.crazy_fun_mode;
+			that.optionsCookie.store();
+		}
+
+		this.OnMagnetMode = function( e )
+		{
+			that.magnet_mode = !that.magnet_mode;
+			// we don't update a currently running game session. The mode selection will only be used when a new game is started.
+			e.elItem.innerHTML = that.magnet_mode ? "on" : "off";
+
+			that.optionsCookie.value.magnet_mode = that.magnet_mode;
 			that.optionsCookie.store();
 		}
 
@@ -4839,7 +4963,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				var name_and_score = this.enterNamePanel.get();
 				if (name_and_score.name && name_and_score.name.length > 0 && this.highScores.can_add_score( name_and_score.score ))
 				{
-					this.highScores.set_score( name_and_score.name, name_and_score.score );
+					var features = this.gameSession.difficulty;
+					if ( this.gameSession.invincible )
+						features += ",invincible";
+					if ( this.gameSession.crazy_fun_mode )
+						features += ",crazy";
+					if ( this.gameSession.magnet_mode )
+						features += ",magnet";
+					var name = name_and_score.name + " (" + features + ")";
+					this.highScores.set_score( name, name_and_score.score );
 					this.highScoresPanel.update();
 				}
 			}
