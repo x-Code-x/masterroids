@@ -4981,7 +4981,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		*/
 		this.EnterNextPlayerName = function( store_current )
 		{
-			if (!this.gameSession || !this.gameSession.game_is_over)
+			if ( !this.gameSession || !this.gameSession.game_is_over || this.gameSession.invincible )
 				return;
 
 			if (this.enterNamePanel.is_visible() && store_current)
@@ -4990,8 +4990,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				if (name_and_score.name && name_and_score.name.length > 0 && this.highScores.can_add_score( name_and_score.score ))
 				{
 					var features = this.gameSession.difficulty;
-					if ( this.gameSession.invincible )
-						features += ",invincible";
+					//if ( this.gameSession.invincible )
+					//	features += ",invincible";
 					if ( this.gameSession.crazy_fun_mode )
 						features += ",crazy";
 					if ( this.gameSession.magnet_mode )
