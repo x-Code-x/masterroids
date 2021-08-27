@@ -72,6 +72,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		margin: auto;
 		width: 100%;
 		height: 100%;
+		touch-action: manipulation;		/* prevent browser double tap zoom on touch devices */
 	}
 </style>
 
@@ -1830,6 +1831,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.elShot = document.getElementById( idprefix + "Shot" );
 		this.elShield = document.getElementById( idprefix + "Shield" );
 
+		this.controls_scale = 1;
+		this.pad_cursor_buttons = 20;		// cursor buttons: give room for human thumb to have a bigger area to touch
+
 		//! map of button names to the DOM elements
 		this.map =
 		{
@@ -1877,8 +1881,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 			var rect = kor.Rect.deflate( kor.Rect.from_size( document.body.offsetWidth, document.body.offsetHeight ), 20 );
 
-			var dim = Math.min( kor.Rect.width(rect), kor.Rect.height(rect) ) * 0.28;
-			var f = dim / this.initial_sizes.forewd.x;
+			var dim = Math.min( kor.Rect.width(rect), kor.Rect.height(rect) ) * this.controls_scale * 0.17;
+			var f = dim / this.initial_sizes.pause.x;
 
 			for( var name in this.map )
 				this.current_rects[name] = kor.Rect.from_size( kor.Vec.floor( kor.Vec.scale( this.initial_sizes[name], f ) ) );
@@ -1897,6 +1901,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			this.current_rects.right = kor.Rect.floor( kor.Rect.dock_ycenter( kor.Rect.dock_right( this.current_rects.right, rectCursors.right ), kor.Rect.ycenter(rectCursors) ) );
 			this.current_rects.forewd = kor.Rect.floor( kor.Rect.dock_xcenter( kor.Rect.dock_top( this.current_rects.forewd, rectCursors.top ), kor.Rect.xcenter(rectCursors) ) );
 			this.current_rects.backwd = kor.Rect.floor( kor.Rect.dock_xcenter( kor.Rect.dock_bottom( this.current_rects.backwd, rectCursors.bottom ), kor.Rect.xcenter(rectCursors) ) );
+
+			var pad = this.pad_cursor_buttons;
+			this.current_rects.left = kor.Rect.offset( this.current_rects.left, -pad, -pad );
+			this.current_rects.right = kor.Rect.offset( this.current_rects.right, -pad, -pad );
+			this.current_rects.forewd = kor.Rect.offset( this.current_rects.forewd, -pad, -pad );
+			this.current_rects.backwd = kor.Rect.offset( this.current_rects.backwd, -pad, -pad );
 
 			// position shot & shield buttons
 			var rectShots = kor.Rect.from_size(
@@ -1923,6 +1933,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				kor.Rect.set_width_height( this.current_rects[name], el.style );
 				kor.Rect.set_left_top( this.current_rects[name], el.style );
 			}
+
+			this.map["left"].style.padding = "" + pad + "px";
+			this.map["right"].style.padding = "" + pad + "px";
+			this.map["forewd"].style.padding = "" + pad + "px";
+			this.map["backwd"].style.padding = "" + pad + "px";
 		}
 
 		//! @param fnDown fnDown( name )
@@ -1962,7 +1977,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		filter: alpha(opacity=10);
 	}
 
-	.navigation_controls .arrows { /*border: 1px solid white;*/ padding: 2em; }
+	.navigation_controls .arrows
+	{
+		/*border: 1px solid white;*/
+		touch-action: manipulation;		/* prevent browser double tap zoom on touch devices */
+	}
+
+	.navigation_controls .action
+	{
+		touch-action: manipulation;		/* prevent browser double tap zoom on touch devices */
+	}
 
 	#navigation_controls_front { z-index: 11; }
 	#navigation_controls_back { z-index: 9; }
@@ -1983,8 +2007,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	<img id="navigationcontrol_Right" src="images/cursor_arrow_right.png" class="arrows" />
 	<img id="navigationcontrol_Up" src="images/cursor_arrow_top.png" class="arrows" />
 	<img id="navigationcontrol_Down" src="images/cursor_arrow_bottom.png" class="arrows" />
-	<img id="navigationcontrol_Shot" src="images/button_shot.png" />
-	<img id="navigationcontrol_Shield" src="images/button_shield.png" />
+	<img id="navigationcontrol_Shot" src="images/button_shot.png" class="action" />
+	<img id="navigationcontrol_Shield" src="images/button_shield.png" class="action" />
 </div>
 
 
