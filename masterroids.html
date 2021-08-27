@@ -1015,6 +1015,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.Green_Extra_factory = new kor.SpriteFactory( SpriteKinds.extra, extra_command({ color: "#043" }), 2, imageLoader );
 		this.Red_Extra_factory = new kor.SpriteFactory( SpriteKinds.extra, extra_command({ color: "#602" }), 2, imageLoader );
 		this.Blue_Extra_factory = new kor.SpriteFactory( SpriteKinds.extra, extra_command({ color: "#016" }), 2, imageLoader );
+		this.Yellow_Extra_factory = new kor.SpriteFactory( SpriteKinds.extra, extra_command({ color: "#661" }), 2, imageLoader );
+		this.Dark_Extra_factory = new kor.SpriteFactory( SpriteKinds.extra, extra_command({ color: "#001" }), 2, imageLoader );
 
 		this.Mine_factory = new kor.SpriteFactory( SpriteKinds.mine, "mine.png", 1, imageLoader );
 		this.Shockwave_factory = new kor.SpriteFactory( SpriteKinds.shockwave, "waveflare.png", 21, imageLoader, null, null, 1, "lighter" );
@@ -2652,6 +2654,22 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					this.red_extras_count_in_level(),
 					total_comets_count
 				);
+			if( this.game_level >= this.yellow_extras_start_level() )
+				this.predefined_cometted_popups_creations.add_multiple(function( x, y )
+					{
+						that.create_Extra( that.spriteFactories.Yellow_Extra_factory, x, y, true, that.on_extra_Yellow_taken, that.snd_take_extra );
+					},
+					this.yellow_extras_count_in_level(),
+					total_comets_count
+				);
+			if( this.game_level >= this.dark_extras_start_level() )
+				this.predefined_cometted_popups_creations.add_multiple(function( x, y )
+					{
+						that.create_Extra( that.spriteFactories.Dark_Extra_factory, x, y, true, that.on_extra_Dark_taken, that.snd_take_extra );
+					},
+					this.dark_extras_count_in_level(),
+					total_comets_count
+				);
 			if( this.game_level >= this.dangers_start_level() )
 				this.predefined_cometted_popups_creations.add_multiple(function( x, y )
 					{
@@ -2779,11 +2797,26 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		{
 			if ( this.crazy_fun_mode )
 				return 10 * this.players_count;
-			var amount = this.players_count * Math.floor( Math.min( (this.game_level - 2) * 0.5 + 1, 2 ) );
+			var start_level = this.red_extras_start_level();
+			var amount = this.players_count * Math.floor( Math.min( (this.game_level - start_level) * 0.5 + 1, 2 ) );
 			if ( this.difficulty == "easy" )
 				amount += this.players_count;
 			return amount;
 		};
+		this.yellow_extras_start_level = function() { return this.crazy_fun_mode || (this.difficulty == "easy") ? 3 : 10; };
+		this.yellow_extras_count_in_level = function()
+		{
+			var start_level = this.yellow_extras_start_level();
+			var repeat_every_nth_level = start_level;
+			return this.game_level >= start_level && ((this.game_level - start_level) % repeat_every_nth_level) == 0 ? this.players_count : 0;
+		}
+		this.dark_extras_start_level = function() { return this.crazy_fun_mode || (this.difficulty == "easy") ? 2 : 9; };
+		this.dark_extras_count_in_level = function()
+		{
+			var start_level = this.dark_extras_start_level();
+			var repeat_every_nth_level = start_level;
+			return this.game_level >= start_level && ((this.game_level - start_level) % repeat_every_nth_level) == 0 ? this.players_count : 0;
+		}
 		this.dangers_start_level = function() { return this.crazy_fun_mode ? 1 : 2; };
 		this.dangers_count_in_level = function()
 		{
@@ -2829,7 +2862,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.shockwave_ring_alpha = 0.3;
 		this.shockwave_max_ship_bump_strength = 0.8;
 		this.extra_anim_speed = 0.0007;
-		this.extra_stay_delay = function() { return this.difficulty == "easy" ? 3 * 60 * 1000 : 10 * 1000 };	// how long (in millisec) an extra shall exist before it disappears
+		this.extra_stay_delay = function() { return this.difficulty == "easy" ? 60 * 1000 : 10 * 1000 };	// how long (in millisec) an extra shall exist before it disappears
 		this.extra_slow_down = 0.006;
 		this.extra_speed = { initial: 0.05, rot: 0.001, max: 0.1, acceleration: 0.001 };	// initial is always used. rot, max and acceleration is used only for magnet_mode.
 		this.extra_detect_distance_scale = 3;		// distance factor for shorter display length in which a extra can detect a player ship to target on.
@@ -3016,25 +3049,44 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			FO.guards_count = 0;		// how many guards the ship has. Used to check for max count of guards that can be taken.
 			FO.weaponry_taken_count = 0;
 			FO.spread_shot = false;	// true if a spread shot extra had been picked up. then the ship shoots in multiple directions at once.
+			FO.spread_shot2 = false;	// a heavier spread shot
 			FO.laser_shot = false;		// true if a laser extra had been picked up. then the shot is a laser.
 			FO.missiles_count = 0;		// how many missiles being launched on one shot
 			FO.missiles_next_shot = [];	// and for each of the missiles, when the next one may be shot
 			FO.b_start_missile_left = true;	// if the next missile shall be started left (true) or right (false) of the ship
+			FO.automatic_shield = false;
+			FO.keep_extras_grade = 0;	// 1 = keep all weapons (red extras), 2 = also keep all guards (blue extras), 3 = also keep automatic shield (yellow extra)
 			FO.on_exploding = function()		// notice, when called, 'this' is the FO object
 			{
-				// We create the extras that we loose.
-				for( var i = 0 ; i < this.weaponry_taken_count ; ++i )
-					that.create_Extra( that.spriteFactories.Red_Extra_factory, this.absolute_pos.x, this.absolute_pos.y, true, that.on_extra_Weaponry_taken, that.snd_take_extra );
+				if ( this.keep_extras_grade < 1 )
+				{
+					// We create the extras that we loose.
+					for( var i = 0 ; i < this.weaponry_taken_count ; ++i )
+						that.create_Extra( that.spriteFactories.Red_Extra_factory, this.absolute_pos.x, this.absolute_pos.y, true, that.on_extra_Weaponry_taken, that.snd_take_extra );
 
-				for( var i = 0 ; i < this.guards_count ; ++i )
-					that.create_Extra( that.spriteFactories.Blue_Extra_factory, this.absolute_pos.x, this.absolute_pos.y, true, that.on_extra_Guard_taken, that.snd_take_guard );
+					// We reset taken extras.
+					this.weaponry_taken_count = 0;
+					this.spread_shot = false;
+					this.spread_shot2 = false;
+					this.laser_shot = false;
+					this.missiles_count = 0;
+					this.missiles_next_shot = [];
+				}
 
-				// We reset taken extras.
-				this.weaponry_taken_count = 0;
-				this.spread_shot = false;
-				this.laser_shot = false;
-				this.missiles_count = 0;
-				this.missiles_next_shot = [];
+				if ( this.keep_extras_grade < 2 )
+				{
+					for( var i = 0 ; i < this.guards_count ; ++i )
+						that.create_Extra( that.spriteFactories.Blue_Extra_factory, this.absolute_pos.x, this.absolute_pos.y, true, that.on_extra_Guard_taken, that.snd_take_guard );
+				}
+
+				if ( this.keep_extras_grade < 3 )
+				{
+					if ( this.automatic_shield )
+						that.create_Extra( that.spriteFactories.Yellow_Extra_factory, this.absolute_pos.x, this.absolute_pos.y, true, that.on_extra_Yellow_taken, that.snd_take_extra );
+
+					this.automatic_shield = false;
+				}
+
 				this.activate_flame( false );
 			}
 			FO.next_life = function()
@@ -3080,7 +3132,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		}
 
 		//! we create a shot relative to the ship and detach it immediately from it.
-		this.create_Shot1 = function( parent_Ship, orientation )
+		this.create_Shot1 = function( parent_Ship, orientation, ystartpos )
 		{
 			// we play the shot sound only if it is a center shot, so not a spread shot
 			if( this.snd_shot && this.sounds_on && orientation === 0 )
@@ -3090,7 +3142,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			FO.set_sprite( FlyingObjectModes.normal, new kor.flying_object_mode( this.spriteFactories.Shot1_factory, this.act_shot ) );
 			FO.set_active_sprite( FlyingObjectModes.normal );
 			FO.pos.x = 0;
-			FO.pos.y = -26;
+			FO.pos.y = ystartpos || -26;
 			FO.orientation = (orientation + kor.Vec.huge_2PI) % kor.Vec.twoPI;
 			FO.calc_absolute_as_if_relative( parent_Ship );
 			FO.a_origin_object = parent_Ship;
@@ -3511,7 +3563,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			else if( FO.spread_shot ) this.create_Shot2( FO, 0 );
 			else this.create_Shot1( FO, 0 );
 
-			if( FO.spread_shot )
+			if ( FO.spread_shot2 )
+			{
+				this.create_Shot2( FO, 15 * kor.Vec.twoPI / 360 );
+				this.create_Shot2( FO, -15 * kor.Vec.twoPI / 360 );
+				this.create_Shot2( FO, 30 * kor.Vec.twoPI / 360 );
+				this.create_Shot2( FO, -30 * kor.Vec.twoPI / 360 );
+				this.create_Shot1( FO, 45 * kor.Vec.twoPI / 360 );
+				this.create_Shot1( FO, -45 * kor.Vec.twoPI / 360 );
+				this.create_Shot1( FO, 90 * kor.Vec.twoPI / 360, 5 );
+				this.create_Shot1( FO, -90 * kor.Vec.twoPI / 360, 5 );
+				this.create_Shot1( FO, 180 * kor.Vec.twoPI / 360, 26 );
+			}
+			else if ( FO.spread_shot )
 			{
 				this.create_Shot1( FO, 30 * kor.Vec.twoPI / 360 );
 				this.create_Shot1( FO, -30 * kor.Vec.twoPI / 360 );
@@ -3634,15 +3698,25 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 			// that the player ship's near_objects contains extras is done just in case of computer simulated player
 			// because we want that ship to hunt extras, too. So since we can now safely remove them again.
-			// And we want them removed for below where we want just dangerous objects to know if to activate the shield.
+			// And we want them removed for computer_shield_near_objects where we want just dangerous objects to know if to activate the shield.
 			FO.remove_near_objects_of_kind( FlyingObjectKinds.Extra );
+
+			this.computer_shield_near_objects( FO );
+		}
+
+		//! activate shield inputs when we are too near certain dangerous objects in FO.near_objects
+		this.computer_shield_near_objects = function( FO )
+		{
+			var inputs = FO.player_inputs;
+
+			if ( inputs == null )
+				return;
 
 			// we activate the shield
 			// - if any object that can destroy us is very near (regardless which one is aimed),
 			// - or when we are in a (not so large) certain distance to any mine
 			// - or after a short human-like reaction delay when a mine has exploded (foLastShockwave) and we are close enough to its shockwave center
 			// - or for a new level the new comets are about to appear, and we are near the screen border,
-			// note: near_obj is the (newly) aimed object.
 			var near_obj_dangerous = FO.near_objects.length > 0 ? FO.near_objects[FO.near_objects.length - 1] : null;		// nearest dangerous object
 			var near_mine = FO.get_nearest_object_data_of_sprite_kinds( [SpriteKinds.mine] );		// checking nearest mine
 			if( (near_obj_dangerous && near_obj_dangerous.distance_sqr <= this.computer_player_shield_distance_sqr( FO, near_obj_dangerous.FO )) ||
@@ -3661,10 +3735,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			{
 				inputs.shield.down = !inputs.shield.pressed;
 				inputs.shield.pressed = true;		// pressed state is sufficient. down-key event we do not need for accelerating player ship.
+				inputs.shield.byComputer = true;
 				FO.last_time_shield_was_on = this.timer.time;
 			}
 			else
-			if( inputs.shield.pressed && (FO.last_time_shield_was_on == null || this.timer.time > FO.last_time_shield_was_on + this.computer_player_shield_remain_on_delay) )
+			if( inputs.shield.pressed && inputs.shield.byComputer && (FO.last_time_shield_was_on == null || this.timer.time > FO.last_time_shield_was_on + this.computer_player_shield_remain_on_delay) )
 				inputs.shield.down = inputs.shield.pressed = false;
 		}
 
@@ -3706,6 +3781,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 			if( that.simulate_players )
 				that.simulate_computer_player_inputs( FO );
+			else
+			if ( FO.automatic_shield )
+				that.computer_shield_near_objects( FO );
 
 			that.move_player( FO );
 
@@ -3785,6 +3863,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 			if( that.simulate_players )
 				that.simulate_computer_player_inputs( FO );
+			else
+			if ( FO.automatic_shield )
+				that.computer_shield_near_objects( FO );
 
 			that.move_player( FO );
 
@@ -4392,7 +4473,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 		// -- extra taken event handlers ---------------------------------------------------
 
-		// Return true if extra taken, otherwise false.
+		// Return true if extra taken (or may be taken), otherwise false.
 		// this = the Extra flying_object
 		// param foPlayer = the player's ship flying_object
 		// param test = if true, such an extra will not be taken. it will just be tested if the player might take it
@@ -4438,7 +4519,27 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				return true;
 			}
 
+			if ( !foPlayer.spread_shot2 )
+			{
+				if( !test ) { ++foPlayer.weaponry_taken_count; foPlayer.spread_shot2 = true; }
+				return true;
+			}
+
 			return false;
+		}
+
+		this.on_extra_Yellow_taken = function( foPlayer, test )
+		{
+			if ( foPlayer.automatic_shield ) return false;
+			if ( !test ) { foPlayer.automatic_shield = true; }
+			return true;
+		}
+
+		this.on_extra_Dark_taken = function( foPlayer, test )
+		{
+			if ( foPlayer.keep_extras_grade >= 3 ) return false;
+			if ( !test ) { ++foPlayer.keep_extras_grade; }
+			return true;
 		}
 
 		// -- game timers ------------------------------------------------------------------
