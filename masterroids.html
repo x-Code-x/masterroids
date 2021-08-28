@@ -107,7 +107,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.comets_count = 0;
 		this.enemies_count = 0;
 		this.alive_players_count = 0;
+		this.alive_human_players_count = 0;
+		this.alive_simulate_players_count = 0;
 		this.players_count = 0;
+		this.human_players_count = 0;
+		this.simulate_players = 0;
 
 		//! Next frame tick.
 		this.tick = function()
@@ -152,7 +156,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			this.comets_count = params.comets_count;
 			this.enemies_count = params.enemies_count;
 			this.alive_players_count = params.alive_players_count;
+			this.alive_human_players_count = params.alive_human_players_count;
+			this.alive_simulate_players_count = params.alive_simulate_players_count;
 			this.players_count = params.players_count;
+			this.human_players_count = params.human_players_count;
+			this.simulate_players = params.simulate_players;
 		}
 
 		this.update();
@@ -167,6 +175,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.elCometsCount = document.getElementById("StatisticsPanel_CometsCount");
 		this.elEnemiesCount = document.getElementById("StatisticsPanel_EnemiesCount");
 		this.elPlayersCount = document.getElementById("StatisticsPanel_PlayersCount");
+		this.elBotsCount = document.getElementById("StatisticsPanel_BotsCount");
 		this.elResolution = document.getElementById("StatisticsPanel_Resolution");
 
 		this.statistics = statistics;
@@ -191,7 +200,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				this.elFlyingObjectsCount.innerHTML = this.statistics.flying_objects_count.toString();
 				this.elCometsCount.innerHTML = this.statistics.comets_count.toString();
 				this.elEnemiesCount.innerHTML = this.statistics.enemies_count.toString();
-				this.elPlayersCount.innerHTML = this.statistics.alive_players_count + " of " + this.statistics.players_count;
+				//this.elPlayersCount.innerHTML = this.statistics.alive_players_count + " of " + this.statistics.players_count;
+				this.elPlayersCount.innerHTML = this.statistics.alive_human_players_count + " of " + this.statistics.human_players_count;
+				this.elBotsCount.innerHTML = this.statistics.alive_simulate_players_count + " of " + this.statistics.simulate_players;
 				this.elResolution.innerHTML = this.statistics.resolutionWidth + " x " + this.statistics.resolutionHeight;
 			}
 		}
@@ -266,6 +277,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<div><span class="header">comets:</span><span id="StatisticsPanel_CometsCount" class="data"></span></div>
 		<div><span class="header">enemies:</span><span id="StatisticsPanel_EnemiesCount" class="data"></span></div>
 		<div><span class="header">players:</span><span id="StatisticsPanel_PlayersCount" class="data"></span></div>
+		<div><span class="header">bots:</span><span id="StatisticsPanel_BotsCount" class="data"></span></div>
 		<div class="header">size of universe:</div><div id="StatisticsPanel_Resolution" class="data"></div>
 	</div>
 
@@ -454,6 +466,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		text-align: center;
 		background: #335;
 	}
+	.menu_subchapter
+	{
+		padding: 2px;
+		color: #ccf;
+		text-align: center;
+	}
 	.disabled-menu-item
 	{
 		padding: 1px 20px;
@@ -521,14 +539,31 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<div class='menu_chapter'>New Game</div>
 		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
 			<tr>
-				<td style='padding-right: 10px;'>players</td>
+				<td style='width: 10em;'>players:</td>
 				<td class='menu-item-unfocused' data-menu-item-id='1pl'>1</td>
 				<td class='menu-item-unfocused' data-menu-item-id='2pl'>2</td>
 				<td class='menu-item-unfocused' data-menu-item-id='3pl'>3</td>
 				<td class='menu-item-unfocused' data-menu-item-id='4pl'>4</td>
-				<td class='menu-item-unfocused' data-menu-item-id='demo' style='min-width: 50px;'>demo</td>
 			</tr>
 		</table>
+		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
+			<tr>
+				<td style='width: 10em; padding-left: 3em;'>bots:</td>
+				<td width='50' class='menu-item-unfocused' data-menu-item-id='optBots'>0</td>
+			</tr>
+		</table>
+		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
+			<tr>
+				<td style='width: 10em;'>demo play:</td>
+				<td class='menu-item-unfocused' data-menu-item-id='demo1'>1</td>
+				<td class='menu-item-unfocused' data-menu-item-id='demo2'>2</td>
+				<td class='menu-item-unfocused' data-menu-item-id='demo3'>3</td>
+				<td class='menu-item-unfocused' data-menu-item-id='demo4'>4</td>
+			</tr>
+		</table>
+		<div class='menu_sep'></div>
+
+		<div class='menu_subchapter'>New Game Options</div>
 		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
 			<tr>
 				<td>difficulty:</td>
@@ -555,7 +590,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</table>
 		<div class='menu_sep'></div>
 
-		<div class='menu_chapter'>Options</div>
+		<div class='menu_chapter'>In Game Options</div>
 		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
 			<tr>
 				<td>team mode:</td>
@@ -576,7 +611,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</table>
 		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
 			<tr>
-				<td style='padding-right: 10px;'>player settings</td>
+				<td style='width: 10em;'>player settings:</td>
 				<td class='menu-item-unfocused' data-menu-item-id='1pl_settings'>1</td>
 				<td class='menu-item-unfocused' data-menu-item-id='2pl_settings'>2</td>
 				<td class='menu-item-unfocused' data-menu-item-id='3pl_settings'>3</td>
@@ -996,6 +1031,25 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.CreatePlayerFactories( 2 );
 		this.CreatePlayerFactories( 3 );
 
+		//! Creates factories for a player if he does not have one alreay.
+		this.CreateMissingPlayerFactories = function( player_index )
+		{
+			if ( player_index < this.Ship_factories.length )
+				return;
+
+			var color = "#888888";
+
+			var Ship_factory = new kor.SpriteFactory( SpriteKinds.playership, ship_command( color ), 10, imageLoader, null, null, null, null, null, true );
+
+			var Shield_factory = new kor.SpriteFactory( SpriteKinds.playershield, shielded_ship_command( color ), 10, imageLoader, null, null, null, null, null, true );
+
+			kor.Array.resize( this.Ship_factories, player_index + 1, null );
+			kor.Array.resize( this.Shield_factories, player_index + 1, null );
+
+			this.Ship_factories[player_index] = Ship_factory;
+			this.Shield_factories[player_index] = Shield_factory;
+		}
+
 		var flame_pos_offset = { x: 0.5, y: 0.5 };
 		var flame_hot_offset = { x: 0.4, y: 0 };
 		this.Flame_A_factory = new kor.SpriteFactory( SpriteKinds.flame, "flamea.png", 0, imageLoader, null, null, 1, "lighter", true, null, flame_pos_offset, flame_hot_offset );
@@ -1071,7 +1125,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 	var LocalPlayerDefs = function()
 	{
-		this.max_players_count = 4;
+		this.max_players_count_with_stats = 4;		// actually the maximum number of human players. also the maximum number of players that can show statistics on the screen as well as having inputs (mouse / keys / touch).
 
 		//! Each player uses key IDs for: left, right, forewd, backwd, fire, shield.
 		this.player_key_IDs = new kor.JCookie(
@@ -1087,7 +1141,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	}
 
 	var PlayerSettings = function(
-							local_player_index,		//!< the index of the player. must be < LocalPlayerDefs.max_players_count
+							local_player_index,		//!< the index of the player. must be < LocalPlayerDefs.max_players_count_with_stats
 							localPlayerDefs
 						  )
 	{
@@ -1241,6 +1295,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.score = 0;
 		this.shield = 1;
 
+		this.isComputerPlayer = false;
+
 		this.getShipFactory = function() { return this.ship_factory.create ? this.ship_factory : this.ship_factory(); }
 		this.getShieldFactory = function() { return this.shield_factory.create ? this.shield_factory : this.shield_factory(); }
 
@@ -1268,6 +1324,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 		this.makeComputerPlayer = function()
 		{
+			this.isComputerPlayer = true;
 			//this.lifes = 50;		// for having more fun, we let a computer player have many lifes
 
 			// we init the Inputs object because simulated players do not retrieve from input devices
@@ -1299,7 +1356,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.localPlayerDefs = new LocalPlayerDefs;
 		this.playerSettings = [];
 
-		for( var i = 0 ; i < this.localPlayerDefs.max_players_count ; ++i )
+		for( var i = 0 ; i < this.localPlayerDefs.max_players_count_with_stats ; ++i )
 		{
 			this.playerSettings.push( new PlayerSettings( i, this.localPlayerDefs ) );
 		}
@@ -1315,12 +1372,29 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.players = [];			//!< array of { player, alive } objects
 		this.count = 0;
 		this.alive_count = 0;
+		this.alive_human_players_count = 0;
+		this.alive_simulate_players_count = 0;
 
-		this.addPlayer = function( ply )
+		this.addPlayer = function( ply, isComputerPlayer )
 		{
 			this.players.push({ player: ply, alive: true });
 			this.count = this.players.length;
 			this.alive_count++;
+			if ( isComputerPlayer )
+				this.alive_simulate_players_count++;
+			else
+				this.alive_human_players_count++;
+		}
+
+		//! decrease and then return alive player count
+		this.decreaseGetAlivePlayerCount = function( isComputerPlayer )
+		{
+			this.alive_count--;
+			if ( isComputerPlayer )
+				this.alive_simulate_players_count--;
+			else
+				this.alive_human_players_count--;
+			return this.alive_count;
 		}
 
 		this.pullInputs = function()
@@ -2364,7 +2438,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 		this.localPlayerSettings = localPlayerSettings;
 		this.players = new GamePlayers;
-		this.players_count = 0;					//!< number of players for this game session (even if they have lost all their lifes)
+		this.players_count = 0;					//!< number of players for this game session (even if they have lost all their lifes) and including computer players
+		this.human_players_count = 0;
+		this.simulate_players = 0;
 		this.timer = timer;
 		this.keyBoard = keyBoard;
 		this.navigationControls = navigationControls;
@@ -2377,7 +2453,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.spriteFactories = spriteFactories;
 		this.soundFactory = soundFactory;
 		this.playerStatisticsPanels = playerStatisticsPanels;
-		this.simulate_players = false;
+		this.simulate_players = 0;				//!< number of computer players of all the players in the game.
 		this.difficulty = difficulty;
 		this.invincible = invincible;
 		this.crazy_fun_mode = crazy_fun_mode;
@@ -2502,12 +2578,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			this.game_timers = [];
 		}
 
-		//! @param players_count must be at maximum LocalPlayerDefs.max_players_count
-		//! @param simulate_players if true, players will not be directed by any input device but by computer. that's demo mode.
-		this.start_game = function( players_count, simulate_players )
+		//! @param human_players_count number of human players. must be at maximum LocalPlayerDefs.max_players_count_with_stats
+		//! @param simulate_players number of computer players to play of all the players in the game. computer players will not be directed by any input device but by computer. in demo mode, there are only computer players.
+		this.start_game = function( human_players_count, simulate_players )
 		{
+			var players_count = human_players_count + simulate_players;
 			this.players = new GamePlayers;
 			this.players_count = players_count;
+			this.human_players_count = human_players_count;
 			this.simulate_players = simulate_players;
 			this.player_flying_objects = [];
 
@@ -2535,24 +2613,33 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			// the players and their ships
 			for( var i = 0 ; i < players_count ; ++i )
 			{
+				var isComputerPlayer = i >= human_players_count;
+
 				// player
-				var playerSettings = this.localPlayerSettings.getPlayerSettingsForPlayerIndex(i);
-				var keyInputs = new PlayerKeyboardInputs( playerSettings, this.keyBoard );
-				var player = new Player(
-					i == 0 ?
+				var playerInputs = null;
+				if ( !isComputerPlayer )
+				{
+					var playerSettings = this.localPlayerSettings.getPlayerSettingsForPlayerIndex(i);
+					var keyInputs = new PlayerKeyboardInputs( playerSettings, this.keyBoard );
+					playerInputs = i == 0 ?
 						new PlayerInputs([keyInputs, new PlayerNavigationControlsInputs( this.navigationControls, this.timer )]) :
-						keyInputs,
+						keyInputs;
+				}
+				var player = new Player(
+					playerInputs,
 					function( pl ) { return function() { return that.spriteFactories.Ship_factories[pl]; }; } (i),
 					function( pl ) { return function() { return that.spriteFactories.Shield_factories[pl]; }; } (i)
 				);
 
-				this.players.addPlayer( player );
+				this.spriteFactories.CreateMissingPlayerFactories( i );
 
-				if( this.simulate_players )
+				this.players.addPlayer( player, isComputerPlayer );
+
+				if ( isComputerPlayer )
 					player.makeComputerPlayer();
 
 				// player ship
-				var pos = this.player_start_pos_percent[players_count - 1][i];
+				var pos = this.GetPlayerStartPosInPercent( i, human_players_count, simulate_players );
 				var display_rect = this.sceneryPainter.surface.display_rect;
 				var foPlayer = this.create_Player_Ship(
 					player.ship_factory,
@@ -2570,9 +2657,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				*/
 
 				// player statistics panel
-				var plPanel = this.playerStatisticsPanels[i];
-				plPanel.init( player );
-				plPanel.show();
+				if ( i < this.playerStatisticsPanels.length )
+				{
+					var plPanel = this.playerStatisticsPanels[i];
+					plPanel.init( player );
+					plPanel.show();
+				}
 			}
 
 			this.game_timers = [];
@@ -2754,7 +2844,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				}
 			}
 
-			for( var i = 0 ; i < this.players_count ; ++i )
+			for ( var i = 0 ; i < this.players_count && i < this.playerStatisticsPanels.length ; ++i )
 				this.playerStatisticsPanels[i].update();
 
 			this.players.reset_keys();
@@ -2914,13 +3004,44 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 		this.enemies_count = 0;					//!< current number of enemies flying around
 
-		//! outer index = players count - 1, inner index = player index
+		//! outer index = players count - 1, inner index = player index.
+		//! it contains positions as point object in form of e.g. {x: 0.5, y: 0.5} where the coords have range 0 to 1.
 		this.player_start_pos_percent = [
 			[{x: 0.5, y: 0.5}],
 			[{x: 0.3, y: 0.5}, {x: 0.7, y: 0.5}],
 			[{x: 0.3, y: 0.3}, {x: 0.7, y: 0.3}, {x: 0.5, y: 0.7}],
 			[{x: 0.25, y: 0.3}, {x: 0.75, y: 0.3}, {x: 0.37, y: 0.7}, {x: 0.63, y: 0.7}]
+			//[{x: 0.25, y: 0.3}, {x: 0.75, y: 0.3}, {x: 0.3, y: 0.7}, {x: 0.7, y: 0.7}, {x: 0.5, y: 0.5}]
 		];
+
+		//! Returns the start pos as point object in form of e.g. {x: 0.5, y: 0.5} where the coords have range 0 to 1.
+		//! @remarks Actually talking about percent is wrong because the coord ranges from 0 to 1 and not 0 to 100.
+		//!		But I keep the name as hint and I do not get a better name in mind right now.
+		this.GetPlayerStartPosInPercent = function( player_index, human_players_count, simulate_players )
+		{
+			var players_count = human_players_count + simulate_players;
+
+			// first take predefined positions if we have.
+			if ( players_count <= this.player_start_pos_percent.length )
+				return this.player_start_pos_percent[ players_count - 1 ][ player_index ];
+
+			// we calculate the positions that way, that all the computer players are in a first row
+			// and the human players are all in a second row.
+			// Human ones below so that they cannot be easily destroyed by the computer players at game start.
+			var isComputerPlayer = player_index >= human_players_count;
+			if ( isComputerPlayer )
+			{
+				var i = player_index - human_players_count;
+				var x = (i + 1) / (simulate_players + 1);
+				return { x: x, y: 0.4 };
+			}
+			else
+			{
+				var i = player_index;
+				var x = (i + 1) / (human_players_count + 1);
+				return { x: x, y: 0.6 };
+			}
+		};
 
 		//! Contains the predefined points in time if and which new extra(s), danger(s) etc. to create when a comet explodes.
 		//! This is only based on the comets in the current level. Extras appearing from destroying any other objects is independent from this here.
@@ -3041,7 +3162,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			FO.player_inputs = player.Inputs;
 			FO.near_objects = [];	// we want to get near_objects for the player
 			FO.near_distance_sqr = function() { var d = that.display_long(); return d * d; };
-			if( this.simulate_players )
+			if ( player.isComputerPlayer )
 				FO.want_more_near_objects = [SpriteKinds.extra];	// a computer simulated player we want to be able to hunt extras
 			FO.calc_absolute();
 			FO.on_releasing = function()
@@ -3793,7 +3914,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				}
 			}
 
-			if( that.simulate_players )
+			if ( FO.player.isComputerPlayer )
 				that.simulate_computer_player_inputs( FO );
 			else
 			if ( FO.automatic_shield )
@@ -3875,7 +3996,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				FO.a_v_velocity = kor.Vec.add( FO.a_v_velocity, vec );
 			}
 
-			if( that.simulate_players )
+			if ( FO.player.isComputerPlayer )
 				that.simulate_computer_player_inputs( FO );
 			else
 			if ( FO.automatic_shield )
@@ -3907,32 +4028,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			{
 				--FO.player.lifes;
 
-				/*
-				if( that.simulate_players && FO.player.lifes === 0 )
-				{
-					// when simulating player, we never die. we just start over with player lifes.
-					// That gives endless demo fun. Just necessary if ever we make a simulated player ship vulnerable.
-					// But for now (24.6.2011) we have them invulnerable and so we do not come here anyway.
-					FO.player.lifes = PlayerConsts.start_lifes;
-
-					// a computer simulated player we let reappear randomly anywhere after he lost all his lifes.
-					// this we do to prevent when 2 ship overlap and permanently die when they finished warping in.
-					FO.pos = kor.Vec.rect_any_pos( that.sceneryPainter.surface.display_rect, Math.random(), Math.random() );
-				}
-				*/
-
 				if( FO.player.lifes === 0 )
 				{
 					// The player lost his last life.
 					FO.release();
 
 					// If the last player died -> game over
-					if( --that.players.alive_count <= 0 )
+					if ( that.players.decreaseGetAlivePlayerCount( FO.player.isComputerPlayer ) <= 0 )
 					{
 						that.game_over();
 
-						// when simulating player, we simply restart the game just when all players died.
-						if( that.simulate_players )
+						// in demo mode (so all players are simulated players), we simply restart the game just when all players died.
+						if ( that.simulate_players == that.players_count )
 							theApp.RestartGame();
 					}
 				}
@@ -4644,6 +4751,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.optionsCookie;
 		this.playerStatisticsPanels = [];
 
+		this.bots = 0;
 		this.difficulty = "hard";
 		this.invincible = false;
 		this.crazy_fun_mode = false;
@@ -4716,7 +4824,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 						comets_count:			that.gameSession ? that.gameSession.comets_count : 0,
 						enemies_count:			that.gameSession ? that.gameSession.enemies_count : 0,
 						alive_players_count:	that.gameSession ? that.gameSession.players.alive_count : 0,
-						players_count:			that.gameSession ? that.gameSession.players_count : 0
+						alive_human_players_count:		that.gameSession ? that.gameSession.players.alive_human_players_count : 0,
+						alive_simulate_players_count:	that.gameSession ? that.gameSession.players.alive_simulate_players_count : 0,
+						players_count:			that.gameSession ? that.gameSession.players_count : 0,
+						human_players_count:	that.gameSession ? that.gameSession.human_players_count : 0,
+						simulate_players:		that.gameSession ? that.gameSession.simulate_players : 0
 					};
 				},
 				function()
@@ -4763,7 +4875,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			this.MainMenu.delegatesClicked["2pl"].add( this.OnStartGame );
 			this.MainMenu.delegatesClicked["3pl"].add( this.OnStartGame );
 			this.MainMenu.delegatesClicked["4pl"].add( this.OnStartGame );
-			this.MainMenu.delegatesClicked["demo"].add( this.OnStartGame );
+			this.MainMenu.delegatesClicked["optBots"].add( this.OnBots );
+			this.MainMenu.delegatesClicked["demo1"].add( this.OnStartGame );
+			this.MainMenu.delegatesClicked["demo2"].add( this.OnStartGame );
+			this.MainMenu.delegatesClicked["demo3"].add( this.OnStartGame );
+			this.MainMenu.delegatesClicked["demo4"].add( this.OnStartGame );
 			this.MainMenu.delegatesClicked["continue"].add( this.OnGameContinue );
 
 			this.MainMenu.showSection( "MainMenuPaused", false );
@@ -4774,7 +4890,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			this.playerSettingsPanel = new PlayerSettingsPanel( this.keyBoard, this.spriteFactories, this.localPlayerSettings.localPlayerDefs );
 			this.playerSettingsPanel.onApply = function( player_index ) {
 				that.playerSettingsPanel.apply( that.gameSession );
-				that.playerStatisticsPanels[player_index].update();
+				if ( player_index < that.playerStatisticsPanels.length )
+					that.playerStatisticsPanels[player_index].update();
 				that.sceneryPainter.draw();
 				that.MainMenu.show( true );
 			};
@@ -4831,10 +4948,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			if( that.gameSession )
 				that.gameSession.dispose();
 
-			// players count is first char of the menu id
-			var players_count = e.id === "demo" ?
-				(that.crazy_fun_mode ? 4 : 1) :
-				parseInt( e.id.substr(0, 1) );
+			var human_players_count = 0;
+			var simulate_players = 0;
+
+			var demo_mode = e.id.startsWith( "demo" );
+
+			if ( demo_mode )
+				simulate_players = parseInt( e.id.substr(4, 5) );	// players count is 5th char of the menu id
+			else
+			{
+				human_players_count = parseInt( e.id.substr(0, 1) );	// players count is first char of the menu id
+				simulate_players = that.bots;
+			}
 
 			// let's start a game
 			that.MainMenu.show( false );
@@ -4855,7 +4980,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				that.magnet_mode
 			);
 			that.gameSession.on_game_over = that.OnGameOver;
-			that.gameSession.start_game( players_count, e.id === "demo" );
+			that.gameSession.start_game( human_players_count, simulate_players );
 
 			that.statistics.update();
 			that.statisticsPanel.displayStatistics();
@@ -4866,7 +4991,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			if( !this.gameSession )
 				return;	// do nothing if there was no game running
 
-			var players_count = this.gameSession.players_count;
+			var human_players_count = this.gameSession.human_players_count;
 			var simulate_players = this.gameSession.simulate_players;
 
 			// release the old game session and make a proper cleanup
@@ -4891,7 +5016,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				that.magnet_mode
 			);
 			that.gameSession.on_game_over = that.OnGameOver;
-			that.gameSession.start_game( players_count, simulate_players );
+			that.gameSession.start_game( human_players_count, simulate_players );
 
 			that.statistics.update();
 			that.statisticsPanel.displayStatistics();
@@ -4991,6 +5116,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 		this.UpdateMainMenu = function()
 		{
+			this.MainMenu.menu_items_by_menu_id["optBots"].innerHTML = this.bots;
 			this.MainMenu.menu_items_by_menu_id["optDifficulty"].innerHTML = this.difficulty;
 			this.MainMenu.menu_items_by_menu_id["optInvincible"].innerHTML = this.invincible ? "on" : "off";
 			this.MainMenu.menu_items_by_menu_id["optCrazyFunModeOnOff"].innerHTML = this.crazy_fun_mode ? "on" : "off";
@@ -4999,6 +5125,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			this.MainMenu.menu_items_by_menu_id["optSoundsOnOff"].innerHTML = this.sounds_on ? "on" : "off";
 			this.MainMenu.menu_items_by_menu_id["optSwitchNavigationControls"].innerHTML = this.navigationControls.active_mode;
 			this.MainMenu.menu_items_by_menu_id["optStatisticsOnOff"].innerHTML = this.statisticsPanel.is_visible() ? "on" : "off";
+		}
+
+		this.OnBots = function( e )
+		{
+			that.bots = (that.bots + 1) % 10;
+			// we don't update a currently running game session. The new selection will only be used when a new game is started.
+			e.elItem.innerHTML = that.bots;
+			// and we don't store it in the cookies. (maybe in future).
 		}
 
 		this.OnDifficulty = function( e )
@@ -5134,7 +5268,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				player_index = this.enterNamePanel.player_index + 1;
 
 			var player = null;
-			while (!player && player_index < this.gameSession.players_count)
+			while ( !player &&
+					player_index < this.gameSession.players_count &&
+					player_index < theApp.localPlayerSettings.localPlayerDefs.max_players_count_with_stats )
 			{
 				player = this.gameSession.players.players[player_index];
 				if (player) player = player.player;
@@ -5142,9 +5278,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				if (!player) ++player_index;
 			}
 
-			if (player_index >= this.gameSession.players_count || this.gameSession.simulate_players || !player)
+			if ( player_index >= this.gameSession.human_players_count || !player )
 			{
-				// last player name entered. close panel
+				// last non-simulated player name entered. close panel
 				this.enterNamePanel.show( false );
 				this.highScoresPanel.show( true );
 				return;

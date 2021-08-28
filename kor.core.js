@@ -121,6 +121,26 @@ if (!kor) kor = {};
 /*
 ========================================================
 
+	Array helper API
+
+========================================================
+*/
+
+	kor.Array =
+	{
+		resize: function( arr, newSize, defaultValue )
+		{
+			while ( newSize > arr.length )
+				arr.push( defaultValue );
+			arr.length = newSize;
+		}
+	}
+
+
+
+/*
+========================================================
+
 	Path helper API
 
 ========================================================
