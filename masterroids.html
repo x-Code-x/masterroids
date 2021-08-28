@@ -548,8 +548,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</table>
 		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
 			<tr>
-				<td style='width: 10em; padding-left: 3em;'>bots:</td>
-				<td width='50' class='menu-item-unfocused' data-menu-item-id='optBots'>0</td>
+				<td style='width: 18em; padding-left: 3em;'>bots:</td>
+				<td class='menu-item-unfocused' data-menu-item-id='optBots'>0</td>
 			</tr>
 		</table>
 		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
@@ -4752,6 +4752,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.playerStatisticsPanels = [];
 
 		this.bots = 0;
+		this.max_bots = 20;
 		this.difficulty = "hard";
 		this.invincible = false;
 		this.crazy_fun_mode = false;
@@ -4954,7 +4955,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			var demo_mode = e.id.startsWith( "demo" );
 
 			if ( demo_mode )
+			{
 				simulate_players = parseInt( e.id.substr(4, 5) );	// players count is 5th char of the menu id
+				simulate_players += that.bots;
+			}
 			else
 			{
 				human_players_count = parseInt( e.id.substr(0, 1) );	// players count is first char of the menu id
@@ -5129,7 +5133,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 		this.OnBots = function( e )
 		{
-			that.bots = (that.bots + 1) % 10;
+			that.bots = (that.bots + 1) % (that.max_bots + 1);
 			// we don't update a currently running game session. The new selection will only be used when a new game is started.
 			e.elItem.innerHTML = that.bots;
 			// and we don't store it in the cookies. (maybe in future).
