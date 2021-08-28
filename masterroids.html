@@ -1031,23 +1031,29 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.CreatePlayerFactories( 2 );
 		this.CreatePlayerFactories( 3 );
 
+		this.Gray_Ship_factory = null;
+		this.Gray_Shield_factory = null;
+
 		//! Creates factories for a player if he does not have one alreay.
 		this.CreateMissingPlayerFactories = function( player_index )
 		{
 			if ( player_index < this.Ship_factories.length )
 				return;
 
-			var color = "#888888";
+			if ( this.Gray_Ship_factory == null )
+			{
+				var color = "#666666";
 
-			var Ship_factory = new kor.SpriteFactory( SpriteKinds.playership, ship_command( color ), 10, imageLoader, null, null, null, null, null, true );
+				this.Gray_Ship_factory = new kor.SpriteFactory( SpriteKinds.playership, ship_command( color ), 10, imageLoader, null, null, null, null, null, true );
 
-			var Shield_factory = new kor.SpriteFactory( SpriteKinds.playershield, shielded_ship_command( color ), 10, imageLoader, null, null, null, null, null, true );
+				this.Gray_Shield_factory = new kor.SpriteFactory( SpriteKinds.playershield, shielded_ship_command( color ), 10, imageLoader, null, null, null, null, null, true );
+			}
 
 			kor.Array.resize( this.Ship_factories, player_index + 1, null );
 			kor.Array.resize( this.Shield_factories, player_index + 1, null );
 
-			this.Ship_factories[player_index] = Ship_factory;
-			this.Shield_factories[player_index] = Shield_factory;
+			this.Ship_factories[player_index] = this.Gray_Ship_factory;
+			this.Shield_factories[player_index] = this.Gray_Shield_factory;
 		}
 
 		var flame_pos_offset = { x: 0.5, y: 0.5 };
