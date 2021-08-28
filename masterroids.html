@@ -2786,6 +2786,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		// first parameters/constants for level start
 
 		this.player_acceleration = function() { return this.difficulty == "easy" ? 0.00025 : 0.0005 };
+		this.player_shield_increase = function() { return this.crazy_fun_mode ? 0.00009 * 2 : 0.00009 };
+		this.player_shield_decrease = function() { return this.crazy_fun_mode ? 0.0002 / 4 : 0.0002 };
 
 		this.level_num_comets = function() { return 4 + Math.round( (this.game_level - 1) * 0.2 + (this.players_count - 1) ); };	// number of initial comets at level start
 		this.green_extras_start_level = function() { return this.crazy_fun_mode ? 1 : (this.difficulty == "easy" ? 3 : 8); };
@@ -3802,7 +3804,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			// load up shield slowly
 			if( FO.player.shield < 1 )
 			{
-				FO.player.shield += 0.00009 * that.timer.delta_t;
+				FO.player.shield += that.player_shield_increase() * that.timer.delta_t;
 				if( FO.player.shield > 1 ) FO.player.shield = 1;
 			}
 
@@ -3884,7 +3886,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			var inputs = FO.player_inputs;
 
 			// eat up shield energy, or check if user released the key
-			FO.player.shield -= 0.0002 * that.timer.delta_t;
+			FO.player.shield -= that.player_shield_decrease() * that.timer.delta_t;
 			if( FO.player.shield <= 0 )
 			{
 				FO.player.shield = 0;
