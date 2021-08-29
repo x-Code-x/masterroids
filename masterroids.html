@@ -2032,10 +2032,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				{
 					var el = this.map[name];
 					(function( nam ) {
-						el.ontouchstart	=
-						el.onmousedown	= function() { fnDown( nam ); };
-						el.ontouchend	=
-						el.onmouseup	= function() { fnUp( nam ); };
+						var down_handler = function() { fnDown( nam ); };
+						var up_handler = function() { fnUp( nam ); };
+						var touchstart_handler = function( ev ) { ev.preventDefault(); down_handler(); };
+						var touchmove_handler = function( ev ) { ev.preventDefault(); };
+						var touchend_handler = function( ev ) { ev.preventDefault(); up_handler(); };
+						var touchcancel_handler = function( ev ) { ev.preventDefault(); up_handler(); };
+						el.onmousedown = down_handler;
+						el.onmouseup = up_handler;
+						el.addEventListener( "touchstart", touchstart_handler, false );
+						el.addEventListener( "touchmove", touchmove_handler, false );
+						el.addEventListener( "touchend", touchend_handler, false );
+						el.addEventListener( "touchcancel", touchcancel_handler, false );
 					})( name );
 				}
 		}
@@ -4851,8 +4859,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 			// -- create UI objects
 
-			this.surface.canvas.ontouchstart =
-			this.surface.canvas.onmousedown = function() { if (that.navigationControls.active_mode == "off") that.OnKeyDown({ keyID: kor.Keys.keyEscape }); };
+			var canvas_down_handler = function() { if (that.navigationControls.active_mode == "off") that.OnKeyDown({ keyID: kor.Keys.keyEscape }); };
+			var canvas_touchstart_handler = function( ev ) { ev.preventDefault(); canvas_down_handler(); }
+			var canvas_touchmove_handler = function( ev ) { ev.preventDefault(); }
+			var canvas_touchend_handler = function( ev ) { ev.preventDefault(); }
+			var canvas_touchcancel_handler = function( ev ) { ev.preventDefault(); }
+			this.surface.canvas.onmousedown = canvas_down_handler;
+			this.surface.canvas.addEventListener( "touchstart", canvas_touchstart_handler, false );
+			this.surface.canvas.addEventListener( "touchmove", canvas_touchmove_handler, false );
+			this.surface.canvas.addEventListener( "touchend", canvas_touchend_handler, false );
+			this.surface.canvas.addEventListener( "touchcancel", canvas_touchcancel_handler, false );
 
 			this.navigationControls = new NavigationControls;
 			this.navigationControls.set_pause_callback( function() { that.OnKeyDown({ keyID: kor.Keys.keyEscape }); } );
