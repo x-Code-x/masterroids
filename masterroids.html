@@ -548,17 +548,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</table>
 		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
 			<tr>
-				<td style='width: 18em; padding-left: 3em;'>bots:</td>
-				<td class='menu-item-unfocused' data-menu-item-id='optBots'>0</td>
-			</tr>
-		</table>
-		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
-			<tr>
 				<td style='width: 10em;'>demo play:</td>
 				<td class='menu-item-unfocused' data-menu-item-id='demo1'>1</td>
 				<td class='menu-item-unfocused' data-menu-item-id='demo2'>2</td>
 				<td class='menu-item-unfocused' data-menu-item-id='demo3'>3</td>
 				<td class='menu-item-unfocused' data-menu-item-id='demo4'>4</td>
+			</tr>
+		</table>
+		<table width='100%' cellpadding='0' cellspacing='3' border='0'>
+			<tr>
+				<td style='width: 20em;'>bots:</td>
+				<td class='menu-item-unfocused' data-menu-item-id='optBots'>0</td>
 			</tr>
 		</table>
 		<div class='menu_sep'></div>
@@ -2455,6 +2455,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		this.players_count = 0;					//!< number of players for this game session (even if they have lost all their lifes) and including computer players
 		this.human_players_count = 0;
 		this.simulate_players = 0;
+		this.colorful_players_count = 0;
 		this.timer = timer;
 		this.keyBoard = keyBoard;
 		this.navigationControls = navigationControls;
@@ -2594,13 +2595,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 		//! @param human_players_count number of human players. must be at maximum LocalPlayerDefs.max_players_count_with_stats
 		//! @param simulate_players number of computer players to play of all the players in the game. computer players will not be directed by any input device but by computer. in demo mode, there are only computer players.
-		this.start_game = function( human_players_count, simulate_players )
+		//! @param colorful_players_count how many (max 4) of the all the first players are colored and have player statistics.
+		//!		this is usually same as human players.
+		//!		the others are just gray without any statistics and thus are actually the bots.
+		//!		in demo mode though, we have only simulate players and some of the first of them can be colorful.
+		//!		but scores can be entered at the end of game only for real human players.
+		this.start_game = function( human_players_count, simulate_players, colorful_players_count )
 		{
 			var players_count = human_players_count + simulate_players;
 			this.players = new GamePlayers;
 			this.players_count = players_count;
 			this.human_players_count = human_players_count;
 			this.simulate_players = simulate_players;
+			this.colorful_players_count = colorful_players_count;
 			this.player_flying_objects = [];
 
 			this.paused = false;
@@ -2624,10 +2631,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			for( var i in this.playerStatisticsPanels )
 				this.playerStatisticsPanels[i].hide();
 
+			var gray_player_index_offset = this.localPlayerSettings.localPlayerDefs.max_players_count_with_stats - colorful_players_count;
+
 			// the players and their ships
 			for( var i = 0 ; i < players_count ; ++i )
 			{
 				var isComputerPlayer = i >= human_players_count;
+				var isColorfulPlayer = i >= colorful_players_count;
+				var i_player = isColorfulPlayer ? i + gray_player_index_offset : i;
 
 				// player
 				var playerInputs = null;
@@ -2641,11 +2652,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				}
 				var player = new Player(
 					playerInputs,
-					function( pl ) { return function() { return that.spriteFactories.Ship_factories[pl]; }; } (i),
-					function( pl ) { return function() { return that.spriteFactories.Shield_factories[pl]; }; } (i)
+					function( pl ) { return function() { return that.spriteFactories.Ship_factories[pl]; }; } (i_player),
+					function( pl ) { return function() { return that.spriteFactories.Shield_factories[pl]; }; } (i_player)
 				);
 
-				this.spriteFactories.CreateMissingPlayerFactories( i );
+				this.spriteFactories.CreateMissingPlayerFactories( i_player );
 
 				this.players.addPlayer( player, isComputerPlayer );
 
@@ -2671,9 +2682,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				*/
 
 				// player statistics panel
-				if ( i < this.playerStatisticsPanels.length )
+				if ( i_player < this.playerStatisticsPanels.length )
 				{
-					var plPanel = this.playerStatisticsPanels[i];
+					var plPanel = this.playerStatisticsPanels[i_player];
 					plPanel.init( player );
 					plPanel.show();
 				}
@@ -2858,7 +2869,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				}
 			}
 
-			for ( var i = 0 ; i < this.players_count && i < this.playerStatisticsPanels.length ; ++i )
+			for ( var i = 0 ; i < this.colorful_players_count && i < this.playerStatisticsPanels.length ; ++i )
 				this.playerStatisticsPanels[i].update();
 
 			this.players.reset_keys();
@@ -4973,17 +4984,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 			var human_players_count = 0;
 			var simulate_players = 0;
+			var colorful_players_count = 0;
 
 			var demo_mode = e.id.startsWith( "demo" );
 
 			if ( demo_mode )
 			{
-				simulate_players = parseInt( e.id.substr(4, 5) );	// players count is 5th char of the menu id
+				simulate_players = colorful_players_count = parseInt( e.id.substr(4, 5) );	// players count is 5th char of the menu id
 				simulate_players += that.bots;
 			}
 			else
 			{
-				human_players_count = parseInt( e.id.substr(0, 1) );	// players count is first char of the menu id
+				human_players_count = colorful_players_count = parseInt( e.id.substr(0, 1) );	// players count is first char of the menu id
 				simulate_players = that.bots;
 			}
 
@@ -5006,7 +5018,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				that.magnet_mode
 			);
 			that.gameSession.on_game_over = that.OnGameOver;
-			that.gameSession.start_game( human_players_count, simulate_players );
+			that.gameSession.start_game( human_players_count, simulate_players, colorful_players_count );
 
 			that.statistics.update();
 			that.statisticsPanel.displayStatistics();
@@ -5019,6 +5031,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 			var human_players_count = this.gameSession.human_players_count;
 			var simulate_players = this.gameSession.simulate_players;
+			var colorful_players_count = this.gameSession.colorful_players_count;
 
 			// release the old game session and make a proper cleanup
 			that.gameSession.dispose();
@@ -5042,7 +5055,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				that.magnet_mode
 			);
 			that.gameSession.on_game_over = that.OnGameOver;
-			that.gameSession.start_game( human_players_count, simulate_players );
+			that.gameSession.start_game( human_players_count, simulate_players, colorful_players_count );
 
 			that.statistics.update();
 			that.statisticsPanel.displayStatistics();
