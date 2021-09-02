@@ -1,0 +1,229 @@
+<!DOCTYPE html>		<!-- doctype is important to make HTML 5 work on IE 9 -->
+<html>
+<!--
+Masterroids-JS-CANVAS
+version 1.0
+
+
+Software License Agreement (BSD License)
+
+Copyright (c) 2009-2021, Roman Komary
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this 
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice, this
+  list of conditions and the following disclaimer in the documentation and/or
+  other materials provided with the distribution.
+
+* Neither the name Roman Komary nor the names of its contributors may be
+  used to endorse or promote products derived from this software without
+  specific prior written permission from Roman Komary.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+-->
+<head>
+<title>Masterroids-JS-CANVAS - The Help</title>
+<style type="text/css">
+	body
+	{
+		width: 100%;
+		margin: 0px;
+		padding: 0px;
+		background-color: #000;
+		font: 11px Verdana;
+		color: #bbb;
+	}
+</style>
+</head>
+
+<body>
+<style type="text/css">
+	.chead
+	{
+		/*padding: 16px;*/
+		/* Note: We are not using a padding here because IE8, Firefox and Chrome handle those differently.
+			IE8 keeps the outer width as specified in the style here whereas the others add the padding
+			to the width. Instead, we make a child div or table with the padding. */
+		position: absolute;
+		top: -10px;
+		width: 100%;
+		z-index: 10;
+	}
+	.chead .title-spacer
+	{
+		font-size: 130px;
+	}
+	.chead .title
+	{
+		color: #999;
+		font: bold 10px Verdana;
+		white-space: nowrap;
+		position: absolute;
+		top: 0px;
+		height: 0px;
+		z-index: 11;
+	}
+	.chead .title div
+	{
+		position: relative;
+		left: -370px;
+	}
+	.chead .title .version
+	{
+		width: 730px;
+		text-align: right;
+		position: relative;
+		top: -30px;
+	}
+	.chead .title a
+	{
+		text-decoration: underline;
+		color: #bbb;
+	}
+</style>
+
+<div class="chead">
+	<table width="0"><tr><td width="50%"></td><td width="0%">
+		<div class='title'>
+			<div><img src="title.png"/></div>
+			<!--<div>MASTERROIDS-JS-CANVAS</div>-->
+			<div class="version">
+				version 1.0<br/>
+				by Roman Komary
+			</div>
+		</div>
+
+		<div class="title-spacer">&nbsp;</div>
+	</td><td width="50%"></td></tr></table>
+</div>
+
+
+
+<style type="text/css">
+	.cdesc
+	{
+		top: 19em;
+		position: relative;
+		width: 100%;
+		text-align: center;
+	}
+	.cdesc .page
+	{
+		width: 80em;
+		display: inline-block;
+	}
+	.cdesc .text
+	{
+		width: 100%;
+		text-align: left;
+	}
+	.cdesc .text br
+	{
+		font-size: 1.6em;
+		vertical-align: top;
+	}
+	.cdesc table th
+	{
+		padding-top: 1em;
+	}
+	.cdesc table td
+	{
+		padding: 0.75em 1em;
+		vertical-align: top;
+	}
+	.cdesc table td.image
+	{
+		text-align: center;
+	}
+	.cdesc table td.image img
+	{
+		padding-bottom: 0.5em;
+	}
+	.cdesc table td.name
+	{
+		font-weight: bold;
+	}
+</style>
+
+<div class="cdesc"><div class="page"><div class="text">
+Masterroids is an asteroids clone. The main goal of the gameplay is to destroy comets and when they are destroyed, you proceed to the next level.<br/>
+
+The game does not have an end. Levels just get slowly more and more difficult. The goal is to reach as many points as possible before the last life is lost.<br/>
+
+As in the original asteroids game, a big comet gets split into 2 medium comets when hit, and a medium one gets split into 2 small ones when hit. A small ones finally just evaporates on destruction.<br/>
+
+Beside the comets, there are more objects appearing and flying around. Some of them are enemies, others are useful extras.<br/>
+
+<table width="100%" cellspacing="0">
+	<tr><th colspan="3">Ships:</th></tr>
+
+	<tr><td width="0" class="image"><img src="images/ship_wings00.png"/><br/><img src="images/shield.png"/></td>  <td width="0"class="name">Spaceship</td>
+	<td width="100%">A spaceship is the craft you are controlling. It flies and glides in space just getting slowly slower while drifting in space.<br/>
+
+	The navigation key Up will fly forward, adding a throttle thrust in the viewing diration to the current drifting direction. Key Down will faster get to a halt. Left and right just turns the ship. The Fire key fires the current combination of weapons. The Shield key activates the shield of the ship to protect it agains any kind of destruction.<br/>
+
+	The flying ship and its shot will wrap around the edges of the viewing space (the universe).
+	</td></tr>
+
+	<tr><th colspan="3">Enemies:</th></tr>
+
+	<tr><td width="0" class="image"><img src="images/danger36.png"/></td>  <td width="0" class="name">Danger</td>
+	<td width="100%">A danger can appear when a comet gets destroyed. It flies towards the nearest spaceship. Shoot it or use your shield to protect you from getting destroyed.</td></tr>
+
+	<tr><td width="0" class="image"><img src="images/enemy00.png"/></td>  <td width="0" class="name">Enemy</td>
+	<td width="100%">An enemy appears from time to time on an edge of the universe and shoot at the closest spaceship.</td></tr>
+
+	<tr><td width="0" class="image"><img src="images/mine.png"/></td>  <td width="0" class="name">Mine</td>
+	<td width="100%">A mine also appears from time to time on an edge of the universe. It just drifts in space and once gets hit or shot will explode with a heavy ring of wave which will destroy everything in its reach.</td></tr>
+
+	<tr><th colspan="3">Extras:</th></tr>
+
+	<tr><td width="0" class="image"><img src="images/extra00.png"/></td>  <td width="0" class="name">Extra</td>
+	<td width="100%">An extra can appear when a comet gets destroyed, or when a ship gets destroyed. Collect an extra by flying over it and you receive ad advantage. There are different colors of extras.<br/>
+	
+	Red extra: It will increase your weaponry.<br/>
+	Blue extra: It will give you a guard orbiting the ship. You can have up to 3 guards.<br/>
+	Green extra: It will give you a protector orbiting the ship. You can have up to 3 protectors.<br>
+	Yellow extra: It will make your ship automatically activate the shield whenever a dangerour situation is being detected. You will still be able to activate the shield with the Shield key just the same.<br/>
+	Dark extra: Each time you pick one up, it will make you keep one more of the other extras when your ship gets destroyed and respawned. First it will keep the weaponry, then the guards, then the yellow extra.</td></tr>
+
+	<tr><th colspan="3">Weapons:</th></tr>
+
+	<tr><td width="0" class="image"><img src="images/shot1.png"/></td>  <td width="0" class="name">Shot 1</td>
+	<td width="100%">This is a spaceship's initial shot.</td></tr>
+
+	<tr><td width="0" class="image"><img src="images/shot2.png"/></td>  <td width="0" class="name">Shot 2</td>
+	<td width="100%">Just a slightly bigger shot to easier hit a target.</td></tr>
+
+	<tr><td width="0" class="image"><img src="images/laser.png"/></td>  <td width="0" class="name">Laser</td>
+	<td width="100%">A huge, fast and longer ranging shot which makes hitting a target a breeze.</td></tr>
+
+	<tr><td width="0" class="image"><img src="images/missle00.png"/></td>  <td width="0" class="name">Missile</td>
+	<td width="100%">A homing missing which will lock on and fly towards the closest target it can detect.</td></tr>
+
+	<tr><th colspan="3">Protections:</th></tr>
+
+	<tr><td width="0" class="image"><img src="images/guard.png"/></td>  <td width="0" class="name">Guard</td>
+	<td width="100%">It orbits the ship it is attached to and locks on to the closest approaching dangerous object. A guard destroys the dangerous object when it gets hit, thus protecting your ship. A guard disappears when it got hit 3 times.</td></tr>
+
+	<tr><td width="0" class="image"><img src="images/protector.png"/></td>  <td width="0" class="name">Protector</td>
+	<td width="100%">A protector is similar to a guard, just that it is orbiting in a slightly bigger radius around the ship, it moves and aims faster than a guard, and it will never get lost, not even when the ship gets destroyed and respawned, and that independent if a dark extra was picked up or not.</td></tr>
+</table>
+<br/><br/>
+</div></div></div>
+</body>
+</html>
