@@ -4852,7 +4852,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			// -- first create main resources
 
 			this.sceneryPainter = new kor.SceneryPainter( this.surface, this.imageLoader.get("background") );
-			this.timer = new kor.SystemTimer( 17, this.OnTick, "interval", this.surface.canvas );			// 17ms to be close to 60 fps
+			this.timer = new kor.SystemTimer( 12, this.OnTick, "interval", this.surface.canvas );			// 17ms would be close to 60 fps. But Mozilla Firefox has strange additinal delays between ticks, so we set it much lower to make sure Firefox does not cut down to 30 fps.
 			this.keyBoard = new kor.Keyboard( this.timer );
 			this.keyBoard.delegateDown.add( this.OnKeyDown );
 
